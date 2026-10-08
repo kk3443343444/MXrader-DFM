@@ -1,0 +1,18 @@
+# 换行符策略：默认一律 LF。
+#
+# 为什么必须显式声明：Windows 上 git 默认 core.autocrlf 会把文本文件的 LF 换成 CRLF，
+# 于是 scripts/*.sh 到了 macOS CI 上会变成 `bad interpreter: /bin/bash^M` 直接跑不起来。
+# 只给 Windows 专用脚本保留 CRLF（cmd.exe 对 LF-only 的批处理有兼容问题）。
+* text=auto eol=lf
+
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源别做任何转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ipa binary
+*.zip binary
+*.a binary
