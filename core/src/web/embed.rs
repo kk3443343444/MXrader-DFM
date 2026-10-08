@@ -172,9 +172,19 @@ mod tests {
         for probe in ["channel_map", "handles", "BP_DFMCharacter_C", "BP_DFMPlayerState_C"] {
             assert!(cm.contains(probe), "channel_map missing {probe}");
         }
+        // 激活页：从参考二进制 **原样提取**（0x59ecaf..0x59fae7，3640 字节）。
+        // 断言的是"原始字节里确实有这些东西"，改动这个文件前先回去改提取脚本。
         let card = card_page();
-        assert!(card.len() > 2_000);
-        for probe in ["卡密激活", "/license/activate", "/license/status", "leaflet-container"] {
+        assert_eq!(card.len(), 3640, "card page must be the verbatim extracted asset");
+        for probe in [
+            "<title>卡密激活</title>",
+            "async function go()",
+            "fetch('/license'",          // 注意：是 /license，不是 /license/activate
+            "fetch('/license/status')",
+            "leaflet-container",
+            "data-battle-ready",
+            "</html>",
+        ] {
             assert!(card.contains(probe), "card page missing {probe}");
         }
         let loot = loot_ids_json().expect("loot ids must be embedded");

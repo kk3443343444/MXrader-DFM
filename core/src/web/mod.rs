@@ -296,7 +296,11 @@ fn build_router(ctx: WebCtx) -> Router {
         // -- pages -------------------------------------------------------------------------
         .route("/", get(root_redirect))
         .route("/battle.html", get(battle_page))
-        .route("/license", get(license_page))
+        // 样本内嵌的激活页（core/assets/battle_card.html，从参考二进制原样提取）里
+        // `async function go()` 提交的是 `fetch('/license', {method:'POST'})` ——
+        // 所以 POST 必须挂在 /license 上。`/license/activate` 保留为别名，方便按
+        // docs/INTERFACES.md §4 手写请求的调用方。
+        .route("/license", get(license_page).post(license_activate))
         .route("/license/activate", post(license_activate))
         .route("/license/status", get(license_status))
         // -- api ---------------------------------------------------------------------------

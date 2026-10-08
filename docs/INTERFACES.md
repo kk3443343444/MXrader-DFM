@@ -89,7 +89,8 @@ void        battle_proxy_free_string(char *p);               // start/stop/statu
 | GET | `/` | 302 → `/battle.html?brand=mx` |
 | GET | `/battle.html` | 雷达页面（`web/index.html`） |
 | GET | `/license` | 卡密激活页（内嵌，见 `core/assets/battle_card.html`） |
-| POST | `/license/activate` | body `{"card":"…"}` → `{"ok":true,"authorized":true}` |
+| POST | `/license` | **激活页自己用的就是这个**（原始 HTML 里是 `fetch('/license',{method:'POST'})`） |
+| POST | `/license/activate` | 同上的别名，方便手写请求 |
 | GET | `/license/status` | `{"authorized":true}` |
 | GET | `/api/status` | 状态 JSON（带一次性 `web_session_token` 校验，本机豁免） |
 | GET | `/api/socks5/hiddify.json` | Hiddify/sing-box 分享配置（socks5 out 出站 + udp） |

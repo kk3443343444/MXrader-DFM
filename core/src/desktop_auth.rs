@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn install_rejects_non_utf8_entry() {
-        let dir = std::env::temp_dir().join(format!("battlerr-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlerr");
         let _ = std::fs::remove_dir_all(&dir);
         let cfg = Config { data_directory: dir.clone(), ..Default::default() };
         let err = install_runtime_resource(
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn install_then_read_entry() {
-        let dir = std::env::temp_dir().join(format!("battlerr2-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlerr2");
         let _ = std::fs::remove_dir_all(&dir);
         let cfg = Config { data_directory: dir.clone(), ..Default::default() };
         let res = install_runtime_resource(
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn card_gate_requires_token_for_gated_actions() {
-        let dir = std::env::temp_dir().join(format!("battlegate-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlegate");
         let _ = std::fs::create_dir_all(&dir);
         let cfg = Config { data_directory: dir, ..Default::default() };
         let st = AppState::new(&cfg, "tok".into());

@@ -38,6 +38,10 @@ pub mod socks5;
 pub mod state;
 pub mod web;
 
+/// 测试专用工具（只在 `cfg(test)` 下编译）：见文件头对"为什么不用 %TEMP%"的说明。
+#[cfg(test)]
+pub mod testutil;
+
 /// 版本串：与 CFBundleShortVersionString 对应，`r` 后缀为构建通道。
 pub const VERSION: &str = "2.3.7-r39";
 

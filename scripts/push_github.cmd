@@ -38,29 +38,34 @@ REM therefore survives Chinese input intact.
 set "GH_USER_VALID=no"
 for /f "usebackq delims=" %%v in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "if ($env:GH_USER -match '@') { 'email' } elseif ($env:GH_USER -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$$' -and $env:GH_USER -notmatch '--$$' -and $env:GH_USER -notmatch '^-') { 'ok' } else { 'bad' }"`) do set "GH_USER_VALID=%%v"
 
-if "%GH_USER_VALID%"=="email" (
-  echo [push] "%GH_USER%" looks like an EMAIL address, not a GitHub username.
-  echo [push]
-  echo [push] A GitHub username is chosen when you register - letters, digits and
-  echo [push] single hyphens, e.g. "octocat". It is NOT your email.
-  echo [push]
-  echo [push] To find yours:
-  echo [push]   1^) sign in at https://github.com
-  echo [push]   2^) click your avatar (top right) -^> "Your profile"
-  echo [push]   3^) the address bar shows https://github.com/XXXXXXX
-  echo [push]      the XXXXXXX part is your username
-  echo [push]
-  echo [push] If you do not have an account yet: https://github.com/signup
-  echo [push] (your QQ mailbox works fine as the signup email)
-  exit /b 2
-)
+if "%GH_USER_VALID%"=="email" goto :email_hint
+if not "%GH_USER_VALID%"=="ok" goto :bad_user
+goto :user_ok
 
-if not "%GH_USER_VALID%"=="ok" (
-  echo [push] "%GH_USER%" is not a valid GitHub username.
-  echo [push] expected 1-39 chars: letters, digits, single hyphens, must start
-  echo [push] with a letter/digit. Do NOT paste a placeholder like ^<your-name^>.
-  exit /b 2
-)
+:email_hint
+echo [push] "%GH_USER%" looks like an EMAIL address, not a GitHub username.
+echo [push]
+echo [push] A GitHub username is chosen when you register: letters, digits and
+echo [push] single hyphens, for example "octocat". It is NOT your email address.
+echo [push]
+echo [push] To find yours:
+echo [push]   1. sign in at https://github.com
+echo [push]   2. click your avatar in the top right, then "Your profile"
+echo [push]   3. the address bar shows  https://github.com/XXXXXXX
+echo [push]      the XXXXXXX part is your username
+echo [push]
+echo [push] No account yet? Register at https://github.com/signup
+echo [push] Your QQ mailbox works fine as the signup email.
+exit /b 2
+
+:bad_user
+echo [push] "%GH_USER%" is not a valid GitHub username.
+echo [push] expected 1-39 chars: letters, digits, single hyphens, must start
+echo [push] with a letter or digit. Do NOT paste a placeholder like the angle
+echo [push] bracket form shown in the docs.
+exit /b 2
+
+:user_ok
 
 cd /d "%~dp0.." || exit /b 1
 

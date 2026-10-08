@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn start_stop_download_roundtrip() {
-        let dir = std::env::temp_dir().join(format!("battlepc-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlepc");
         let _ = std::fs::remove_dir_all(&dir);
         let cfg = Config { data_directory: dir.clone(), ..Default::default() };
         let st = AppState::new(&cfg, "tok".into());
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn prune_keeps_only_newest_files() {
-        let dir = std::env::temp_dir().join(format!("battleprune-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battleprune");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         for i in 0..5 {

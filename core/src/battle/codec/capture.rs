@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn nothing_is_written_when_disabled() {
-        let dir = std::env::temp_dir().join(format!("battlecap-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlecap");
         let _ = std::fs::remove_dir_all(&dir);
         let mut c = Capture::new(CaptureConfig::default());
         c.note(entry("1.1.1.1:1"));
@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn start_writes_ndjson_and_stop_flushes() {
-        let dir = std::env::temp_dir().join(format!("battlecap2-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlecap2");
         let _ = std::fs::remove_dir_all(&dir);
         let mut c = Capture::new(CaptureConfig::default());
         let path = c.start(&dir, 1_000).unwrap();
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn auto_stop_by_size_and_by_time() {
-        let dir = std::env::temp_dir().join(format!("battlecap3-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlecap3");
         let _ = std::fs::remove_dir_all(&dir);
         let mut c = Capture::new(CaptureConfig {
             max_capture_bytes: 1,

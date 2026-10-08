@@ -287,7 +287,7 @@ mod tests {
     use super::*;
 
     fn cfg() -> Config {
-        let dir = std::env::temp_dir().join(format!("battlecard-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battlecard");
         let _ = std::fs::create_dir_all(&dir);
         Config { data_directory: dir, ..Default::default() }
     }

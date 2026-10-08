@@ -190,7 +190,7 @@ mod tests {
     use super::*;
 
     fn cfg() -> Config {
-        let dir = std::env::temp_dir().join(format!("battleann-{}", std::process::id()));
+        let dir = crate::testutil::scratch_dir("battleann");
         let _ = std::fs::create_dir_all(&dir);
         Config { data_directory: dir, ..Default::default() }
     }
@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn missing_file_yields_empty_store_not_error() {
         let c = Config {
-            data_directory: std::env::temp_dir().join("battleann-missing-xyz"),
+            data_directory: crate::testutil::missing_dir("battleann-missing-xyz"),
             ..Default::default()
         };
         let s = load(&c);

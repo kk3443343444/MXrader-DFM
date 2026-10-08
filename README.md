@@ -119,12 +119,19 @@ cargo run --bin selftest -- --json   # 若加了 bin（当前用 C ABI 的 battl
 |---|---|
 | 样本结构逆向（Mach-O/Info.plist/模块树/内嵌资产） | ✅ 完成，见 docs/REVERSE_ENGINEERING.md |
 | `core/assets/channel_map.json`（77 通道 / 53 类名字表） | ✅ 从样本提取（83,709 B） |
+| `core/assets/battle_card.html`（激活页） | ✅ 从样本**原样**提取（3,640 B，与二进制逐字节一致；首次提取曾截断 505 B，已修正） |
 | `core/assets/loot_ids.json`（物品 ID→资产名） | ✅ 从样本提取（122 条样例 + 词典展开逻辑） |
-| `core/assets/battle_card.html`（激活页） | ✅ 从样本提取（3,135 B） |
 | `ios/BattleReceiverOpen/Resources/MXIcon*`、`MXMark`、`BattleMark` | ✅ 从样本复制 |
-| Rust 代码（模块树/逻辑/单元测试） | ✅ 已写完；⚠️ **本机无 Rust 工具链，未执行 `cargo test`** |
-| Swift 代码（11 文件 + C ABI 桥） | ✅ 已写完；⚠️ **本机无 Xcode，未真机编译** |
-| 端到端（真机 + 真实对局） | ❌ 未验证：需要 macOS 构建 + 两台设备 + 校准 `ProtocolProfile`/`maps.json` |
+| **Rust 核心：`cargo test`** | ✅ **222 passed / 0 failed**（Windows + MinGW/GNU 实测；默认并行、无需任何环境变量） |
+| 跨语言契约 / 结构健全性 / 前端 19 项断言 | ✅ `scripts/check_contract.py`、`check_sources.py`、`preview_selftest.py` 全绿 |
+| Swift 代码（13 文件 + C ABI 桥） | ⚠️ **从未在 macOS 上编译过** —— 只有 CI 能暴露类型错误 |
+| 可安装的 IPA | ⚠️ 需 GitHub Actions（见 docs/BUILD_IPA.md）或一台 Mac |
+| 端到端（真机 + 真实对局） | ❌ 未验证：需要两台设备 + 校准 `ProtocolProfile`/`maps.json` |
+
+**校验中发现并修掉的真 bug（示例）**：`reqwest 0.13` 特性改名、物资 ID 超出 `u32`（11 位
+ID 全被静默丢弃）、`aarch64` 真机与模拟器切片无法 `lipo`、selftest 的 ChannelIndex 少写一位、
+`location_bits=20` 只能表示 ±52 m（运动 1.2 km 直接溢出）、`Capture::start` 两个句柄写同一个
+文件导致 `battle-parse-*.ndjson` 从不产生、激活页 POST 的路由与原始 HTML 不一致。
 
 **校准顺序**（拿到真实流量后）：`ProtocolProfile` → `RepMovementProfile` →
 `handles` 名字表 → `maps.json` 的 `origin/scale/yaw_offset_deg`。详见

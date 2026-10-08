@@ -220,7 +220,7 @@ mod tests {
     use super::*;
 
     fn dir() -> std::path::PathBuf {
-        let d = std::env::temp_dir().join(format!("battlemon-{}", std::process::id()));
+        let d = crate::testutil::scratch_dir("battlemon");
         let _ = std::fs::create_dir_all(&d);
         d
     }

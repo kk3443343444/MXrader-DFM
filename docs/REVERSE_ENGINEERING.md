@@ -162,9 +162,9 @@ response MyqKHh8QLkIADA==
 
 ### 5.4 卡密激活页（HTML/CSS/JS）
 
-二进制里有一张**完整明文**的激活页（已提取为 `core/assets/battle_card.html`，3,135 字节）：
+二进制里有一张**完整明文**的激活页（已提取为 `core/assets/battle_card.html`，3,640 字节）：
 
-* 标题"卡密激活"，输入框 + `fetch('/license/activate')`
+* 标题"卡密激活"，输入框 + `fetch('/license', {method:'POST'})`（注意是 `/license`，不是 `/license/activate`）
 * 打开时轮询 `fetch('/license/status')`，`j.authorized` 为真则 `location.href='/'`
 * 文案：`请输入卡密` / `卡密验证通过，进入雷达` / `未激活` / `已激活，正在进入雷达…` / `网络异常，请重试`
 * `<html data-battle-ready="1">` 与一个 1×1 的 `.leaflet-container` 探针层
@@ -226,7 +226,7 @@ B 机（跑《三角洲行动》手游）                 A 机（本 app）
 /                       302 → /battle.html?brand=mx
 /battle.html            雷达页面（运行时资源）
 /license                卡密激活页（内嵌）
-/license/activate       卡密校验
+POST /license           卡密校验（激活页自己用的就是这条；/license/activate 是别名）
 /license/status         授权状态
 /api/status             状态 JSON
 /api/socks5/hiddify.json  Hiddify/sing-box 分享配置

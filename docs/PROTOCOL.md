@@ -111,7 +111,7 @@ bRepPhysics ?  Location(NetQuantize100) + Rotation(3×16) + LinearVelocity(NetQu
             : [base? Location] [bRelativeRotation? Rotation] LinearVelocity
 ```
 
-`RepMovementProfile` 可调：`location_bits=20`、`location_scale=0.01`（1/100 cm 定点）、
+`RepMovementProfile` 可调：`location_bits=24`、`location_scale=0.01`（1/100 cm 定点）、
 `velocity_bits=16`、`rotator_16bit=true`。
 
 **身份（`udpxin_identity.rs`）** —— 用 handle 号而非名字查表，跨版本更稳：
@@ -164,7 +164,7 @@ Downed ──DeadInfo/bDeadCanOPtimise──▶ Dead ──bIsDeadBox(129)──
 3. **看 `decode gate`**：如果 `packets_gated / packets_seen` 接近 0，说明分帧档不对
    → 调整 `packet_id_bits` / `ack_bits` / `channel_index_bits` / `bunch_variant`。
 4. **看属性命中**：`property_blocks` 有值但 `moves=0` → `FRepMovement` 档不对
-   （`location_bits`/`location_scale`/`has_base_bit`）。
+   （`location_bits`=24 / `location_scale`=0.01 / `has_base_bit`）。
 5. **看实体数**：`entities` 正常但名字/队伍全空 → `handles` 名字表过期，
    需要重新导出 `channel_map.json`（用 `tools/catalogs.py` 在新版客户端上重抠）。
 6. **标定地图**：进图后站在两个已知地标（如出生点、地图角落），
