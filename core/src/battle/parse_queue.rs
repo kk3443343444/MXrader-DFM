@@ -136,7 +136,8 @@ impl ParseQueue {
                 tracing::debug!("spawn battle-ordered-apply");
                 let mut last = 0u64;
                 while let Some(out) = apply_rx.recv().await {
-                    if out.seq < last {
+                    // 必须严格递增：重复 seq（worker 迟到的同号结果）也是乱序，要丢弃并记账。
+                    if out.seq <= last {
                         stats.out_of_order.fetch_add(1, Ordering::Relaxed);
                         continue;
                     }

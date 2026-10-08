@@ -80,7 +80,10 @@ const NUMERIC_DEFAULTS: [&str; 17] = [
 const BOOLEAN_DEFAULTS: [&str; 3] = ["alive", "visible", "is_self"];
 
 /// Fields that stay strings when missing.
-const STRING_DEFAULTS: [&str; 4] = ["uuid", "name", "kind", "weapon"];
+///
+/// `source` is part of the documented player entry (INTERFACES.md 5: `"source":"move|state|fire|kill"`),
+/// so it must default to an empty string rather than `null`: the frontend reads it directly.
+const STRING_DEFAULTS: [&str; 5] = ["uuid", "name", "kind", "weapon", "source"];
 
 // ---------------------------------------------------------------------------------------------
 // hello
@@ -414,6 +417,8 @@ pub fn convert_entity(
         );
     }
 
+    // `x` / `y` are already metres here (divided by `CM_PER_METRE` above) and the origin is metres
+    // too (INTERFACES.md 5 `hello.world.origin_x/origin_y`), so the distance is a pure metre delta.
     let x = object.get("x").and_then(|v| as_f64(v)).unwrap_or(0.0);
     let y = object.get("y").and_then(|v| as_f64(v)).unwrap_or(0.0);
     let distance = compute_distance(x, y, origin_x, origin_y);

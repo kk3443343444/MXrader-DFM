@@ -339,7 +339,10 @@ mod tests {
         s.entities.open_channel(3, Some("BP_DFMCharacter_C"), Some(0x42), 0);
         s.identities.apply_character(3, &CharacterProps { guid: Some(0x42), ..Default::default() }, 0);
         s.note_move(3, MoveSource::Indexed, 100);
-        assert_eq!(s.local_uuid(), Some("G000000000000042".to_string()));
+        // 契约：uuid = `format!("G{g:016X}")`（见 udpxin_identity::uuid_for 及其
+        // `uuid_prefers_guid_then_uin_then_channel` 测试），即 G + 16 位十六进制。
+        // 0x42 → "0000000000000042"（14 个 0），不是 13 个 0。
+        assert_eq!(s.local_uuid(), Some("G0000000000000042".to_string()));
     }
 
     #[test]

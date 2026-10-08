@@ -190,7 +190,7 @@ fn check_transport_sniffing(r: &mut SelfTestReport) {
 }
 
 fn check_profile_framing(r: &mut SelfTestReport) {
-    use super::codec::bitstream::BitWriter;
+    use super::codec::bitstream::{ceil_log2, BitWriter};
 
     let p = ProtocolProfile::dfm_r39();
     let mut w = BitWriter::new();
@@ -204,7 +204,10 @@ fn check_profile_framing(r: &mut SelfTestReport) {
     w.write_bit(true);
     w.write_bit(false); // bIsReplicationPaused
     w.write_bit(false); // bReliable
-    w.write_bits(3, 12); // channel (SerializeInt(4096) = 12 位)
+    // channel: SerializeInt(max_channels=4096) 需要 ceil_log2(4096+1)=13 位（不是 12）。
+    // 写 12 位会让后面的 CloseReason/BunchDataBits 全部错位（BunchDataBits 被读成
+    // 32776=0x8008 → BunchPayloadExceedsPacket）。
+    w.write_bits(3, ceil_log2(p.max_channels + 1));
     w.write_bits(0, 8); // close reason
     w.write_bits(16, 16); // BunchDataBits
     w.write_bits(0xAB, 8);

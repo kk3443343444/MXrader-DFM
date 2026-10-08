@@ -30,27 +30,18 @@ set "GH_USER=%~1"
 set "GH_REPO=%~2"
 if "%GH_REPO%"=="" set "GH_REPO=MXrader-DFM"
 
-REM Validate the username without relying on "echo x | findstr ^...$":
-REM cmd inserts a space before the pipe, which breaks the end anchor - that bug
-REM rejected a perfectly valid name like "octocat" during testing.
-REM Instead: string substitution detects forbidden characters, and a findstr for
-REM "any char outside printable ASCII" catches the Chinese placeholder case.
-set "CHK=%GH_USER%"
-set "BAD="
-if "%CHK%"=="" set "BAD=empty"
-if not "%CHK%"=="%CHK:<=%" set "BAD=angle bracket"
-if not "%CHK%"=="%CHK:>=%" set "BAD=angle bracket"
-if not "%CHK%"=="%CHK: =%" set "BAD=space"
-if not "%CHK%"=="%CHK:_=%" set "BAD=underscore"
-if not "%CHK%"=="%CHK:/=%" set "BAD=slash"
-if not "%CHK%"=="%CHK:\=%" set "BAD=backslash"
-REM NOTE: there is deliberately no %% check - percent substitution inside a batch
-REM file is unreliable enough to cause false rejections.
-echo %CHK%|findstr /r "[^ -~]" >nul && set "BAD=non-ASCII"
-if defined BAD (
-  echo [push] "%GH_USER%" is not a valid GitHub username ^(%BAD%^).
-  echo [push] expected letters/digits/hyphens only, e.g. "octocat".
-  echo [push] do NOT paste a placeholder - use your real account name.
+REM Validate with PowerShell instead of hand-rolled batch char checks: batch's
+REM findstr/substitution tricks are unreliable here (cmd inserts a space before a
+REM pipe, and non-ASCII arguments get mangled by the OEM code page). The username
+REM travels as an inherited environment variable, which is UTF-16 on Windows and
+REM therefore survives Chinese input intact.
+set "GH_USER_VALID=no"
+for /f "usebackq delims=" %%v in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "if ($env:GH_USER -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$$' -and $env:GH_USER -notmatch '--$$' -and $env:GH_USER -notmatch '^-') { 'yes' } else { 'no' }"`) do set "GH_USER_VALID=%%v"
+
+if not "%GH_USER_VALID%"=="yes" (
+  echo [push] "%GH_USER%" is not a valid GitHub username.
+  echo [push] expected 1-39 chars: letters, digits, single hyphens, must start
+  echo [push] with a letter/digit. Do NOT paste a placeholder like ^<your-name^>.
   exit /b 2
 )
 

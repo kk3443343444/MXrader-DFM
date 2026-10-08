@@ -790,9 +790,17 @@ async fn tile(
 }
 
 /// Keeps a path segment from escaping the tile directory.
+///
+/// The input may still carry separators (a decoded `%2F` or a caller that forgot to split), so the
+/// value is first cut into components: empty, `.` and `..` components are dropped and the surviving
+/// text is concatenated. Only then are the remaining characters restricted to a safe filename set.
+/// A value that reduces to nothing (or keeps a `..` run, e.g. `...`) falls back to the sentinel so
+/// no result ever contains a parent-directory reference.
 fn sanitize_path_segment(raw: &str) -> String {
     let cleaned: String = raw
-        .chars()
+        .split(['/', '\\'])
+        .filter(|segment| !segment.is_empty() && *segment != "." && *segment != "..")
+        .flat_map(|segment| segment.chars())
         .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-' || *c == '.')
         .collect();
     if cleaned.is_empty() || cleaned.contains("..") {
