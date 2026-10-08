@@ -16,6 +16,9 @@
 
 import Foundation
 import Combine
+// ScenePhase（以及视图层直接读的几个 URL 类型）来自 SwiftUI；这个文件只用到
+// 个别类型，所以单独 import 而不是把模型塞进视图层。
+import SwiftUI
 
 @MainActor
 final class ReceiverModel: ObservableObject {
@@ -104,6 +107,14 @@ final class ReceiverModel: ObservableObject {
         let host = endpoint.displayAddress ?? localIPCandidate ?? "127.0.0.1"
         let port = webPort == 0 ? 2025 : webPort
         return "http://\(host):\(port)/battle.html?brand=\(brand)"
+    }
+
+    /// 当前雷达页地址（视图层直接读这个实例属性）。
+    ///
+    /// 真正的计算放在下面的 `static func browserURL(from:brand:)` 里，这样没有模型
+    /// 实例时（例如启动早期或测试）也能算；视图侧只认这个属性，两边不要各写一份。
+    var browserURL: URL? {
+        Self.browserURL(from: endpoint, brand: brand)
     }
 
     /// Hiddify / sing-box share profile served by the Rust HTTP layer.

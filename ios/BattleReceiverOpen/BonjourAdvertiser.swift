@@ -25,7 +25,7 @@ final class BonjourAdvertiser: NSObject {
     static let tcpServiceType = "_battleproxy._tcp."
     static let udpServiceType = "_battleproxy._udp."
 
-    private var services: [NSNetService] = []
+    private var services: [NetService] = []
     private(set) var isAdvertising = false
     private var advertisedPort: UInt16 = 0
     private let brand: String
@@ -51,13 +51,13 @@ final class BonjourAdvertiser: NSObject {
         advertisedPort = port
         let txt = txtRecord(port: port)
 
-        let tcp = NSNetService(
+        let tcp = NetService(
             domain: "local.",
             type: Self.tcpServiceType,
             name: serviceName,
             port: Int32(port)
         )
-        let udp = NSNetService(
+        let udp = NetService(
             domain: "local.",
             type: Self.udpServiceType,
             name: serviceName,
@@ -118,9 +118,9 @@ final class BonjourAdvertiser: NSObject {
     }
 }
 
-// MARK: - NSNetServiceDelegate (intentional no-ops)
+// MARK: - NetServiceDelegate (intentional no-ops)
 
-extension BonjourAdvertiser: NSNetServiceDelegate {
+extension BonjourAdvertiser: NetServiceDelegate {
 
     /// A name collision is not an error: the system renames the instance, and
     /// the radar URL never depends on the advertised name.

@@ -32,7 +32,8 @@ char *battle_proxy_stop(void);
 /* Snapshot of the current status (INTERFACES.md 3), without the web token churn. */
 char *battle_proxy_status(void);
 
-/* Local-only admin channel: path is one of the /api/admin/* routes, body is JSON or NULL. */
+/* Local-only admin channel: path is one of the admin routes under /api, body is JSON or NULL.
+   (注意别在块注释里写出斜杠加星号，clang 会报 "'/*' within block comment" 警告。) */
 char *battle_proxy_admin(const char *token, const char *path, const char *body);
 
 /* Release any char * returned by start/stop/status/admin. NULL is a no-op. */
