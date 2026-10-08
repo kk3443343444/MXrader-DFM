@@ -33,6 +33,11 @@ struct Receiver {
     state: AppState,
     engine: BattleEngine,
     cfg: Config,
+    /// 监听器的句柄（socket 本体在各自 spawn 出去的循环里）。
+    /// 留着是为了 stop 时能有序关掉：只发 shutdown 信号也能退出，
+    /// 但显式 await 一次能保证"停"之后端口立刻可被下次启动绑定。
+    socks: crate::socks5::Socks5Listener,
+    web: crate::web::WebServer,
 }
 
 // SAFETY: 所有跨线程访问都通过 `OnceLock<Mutex<..>>` 串行化；
@@ -97,8 +102,7 @@ fn pick_port(cfg: &Config) -> Option<u16> {
 }
 
 /// 启动接收器。返回 status JSON。
-pub fn start_impl(config_json: &str) -> String {
-    crate::init_runtime();
+pub fn start_impl(config_json: &str) -> String {    crate::init_runtime();
 
     {
         let guard = slot().lock().unwrap_or_else(|e| e.into_inner());
@@ -141,15 +145,16 @@ pub fn start_impl(config_json: &str) -> String {
         }
     }
 
-    let Some(port) = pick_port(&cfg) else {
+    // 预检：区间里是否还有空闲端口。**只**用于给出友好的中文报错；
+    // 真正的端口以下面两个 listener 实际绑定的为准。
+    if pick_port(&cfg).is_none() {
         state.fail(format!(
             "接收端口被其他应用占用（已自动尝试 {}-{}）。请从后台彻底关闭旧版 MXrader/BATTLE，或卸载多余的雷达后，再点「重新启动」。",
             cfg.endpoint.ports.range[0], cfg.endpoint.ports.range[1]
         ));
         return serde_json::to_string(&state.status_snapshot())
             .unwrap_or_else(|_| "{\"phase\":\"failed\"}".to_string());
-    };
-    state.set_ports(port, port);
+    }
     state.set_phase(crate::state::Phase::Starting);
 
     // 局域网展示地址：优先出口网卡，其次 getifaddrs。
@@ -183,32 +188,37 @@ pub fn start_impl(config_json: &str) -> String {
         BattleEngine::new(state.clone(), cfg.clone())
     };
 
-    // 端口已绑定 → 进入 running（web 与 socks5 在后台真正监听）。
+    // 真正绑定：SOCKS5 占区间里第一个可用端口，web 占**另一个**（两者不可能同号）。
+    // 必须绑完再返回 running —— iOS 启动页对 running 的文案就是"端口已绑定，
+    // 正在等待雷达页面"，而且 Swift 侧随后会拿状态里的 web_port 去加载 WebView。
+    // 这里如果只是 spawn 出去不管，端口号就是瞎上报的（曾经就是这么做，导致
+    // WebView 连上 SOCKS5 端口 → "雷达页面加载失败"）。
+    let bound = runtime.block_on(async {
+        match crate::socks5::run(state.clone(), engine.clone(), cfg.clone()).await {
+            Ok(socks) => match crate::web::serve(state.clone(), engine.clone(), cfg.clone()).await {
+                Ok(web) => Ok((socks, web)),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        }
+    });
+    let (socks, web) = match bound {
+        Ok(pair) => pair,
+        Err(e) => {
+            state.fail(format!("本地服务启动失败，请检查端口是否被占用。原始错误：{e}"));
+            runtime.shutdown_timeout(std::time::Duration::from_secs(1));
+            return json_status(&state);
+        }
+    };
+
+    state.set_ports(socks.port(), web.port());
     state.set_phase(crate::state::Phase::Running);
     state.touch_health();
-
-    // 后台拉起 socks5 + web；失败则把 phase 打回 failed（样本同路径）。
-    {
-        let state2 = state.clone();
-        let engine2 = engine.clone();
-        let cfg2 = cfg.clone();
-        runtime.spawn(async move {
-            let socks = crate::socks5::run(state2.clone(), engine2.clone(), cfg2.clone()).await;
-            let web = crate::web::serve(state2.clone(), engine2.clone(), cfg2.clone()).await;
-            match (socks, web) {
-                (Ok(s), Ok(w)) => {
-                    tracing::info!(
-                        socks = s.port(),
-                        web = w.port(),
-                        "receiver running: SOCKS5 TCP/UDP + radar web"
-                    );
-                }
-                (Err(e), _) | (_, Err(e)) => {
-                    state2.fail(format!("本地服务启动失败，请检查端口是否被占用。原始错误：{e}"));
-                }
-            }
-        });
-    }
+    tracing::info!(
+        socks = socks.port(),
+        web = web.port(),
+        "receiver running: SOCKS5 TCP/UDP + radar web"
+    );
 
     // 授权 + 公告（离线可用：失败只记状态，不阻塞）。
     {
@@ -221,8 +231,14 @@ pub fn start_impl(config_json: &str) -> String {
     }
 
     let status = json_status(&state);
-    *slot().lock().unwrap_or_else(|e| e.into_inner()) =
-        Some(Receiver { runtime, state, engine, cfg });
+    *slot().lock().unwrap_or_else(|e| e.into_inner()) = Some(Receiver {
+        runtime,
+        state,
+        engine,
+        cfg,
+        socks,
+        web,
+    });
     status
 }
 
@@ -243,12 +259,18 @@ pub fn stop_impl() -> String {
         Some(r) => {
             r.state.set_phase(crate::state::Phase::Stopping);
             let snapshot = json_status(&r.state);
-            // 通知所有听众退出，然后给 2 秒收尾。
-            r.runtime.block_on(async {
-                r.state.request_shutdown().await;
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            let Receiver { runtime, state, web, socks, .. } = r;
+            // 通知所有听众退出（socks5 的转发任务、广播、解析流水都监听它），
+            // 再显式关掉两个监听器，最后给 2 秒收尾。
+            runtime.block_on(async {
+                state.request_shutdown().await;
+                let _ = tokio::time::timeout(std::time::Duration::from_millis(500), web.shutdown())
+                    .await;
+                let _ = tokio::time::timeout(std::time::Duration::from_millis(500), socks.shutdown())
+                    .await;
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             });
-            r.runtime.shutdown_timeout(std::time::Duration::from_secs(2));
+            runtime.shutdown_timeout(std::time::Duration::from_secs(2));
             snapshot
         }
         None => {
@@ -495,5 +517,79 @@ mod tests {
         let t = new_session_token();
         assert_eq!(t.len(), 32);
         assert!(t.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    /// 端到端回归测试，复刻真机上的失败场景（两部 iPhone 都复现过）：
+    ///
+    /// 状态里 phase=running，但 WebView 打开 status.endpoint.radar_url 时
+    /// "无法连接本机雷达端口"。原因是 SOCKS5 与 web 各自在端口区间里找空位，
+    /// 而状态上报的 web_port 其实是 SOCKS5 的端口。
+    ///
+    /// 所以这里不只比对字段，而是**真的按状态里的 radar_url 发一次 HTTP 请求**，
+    /// 要求拿到 200 + 页面内容。不启动真实转发流量，只走"绑定 → 上报 → 访问"这条链。
+    #[test]
+    fn radar_url_from_status_is_actually_served() {
+        // 每次用一个独立端口区间，避免和本机上别的东西（或这个测试的重复运行）抢端口。
+        // 注意配置的真实形状是 endpoint.ports.range（闭区间），不是顶层的 socks_port；
+        // serde 对未知字段是"静默忽略"，所以写错名字不会报错、只会悄悄跑在默认区间上。
+        let base = 27000 + (std::process::id() % 200) as u16;
+        // 数据目录指进工作区：这台开发机禁止子进程往 %TEMP% 写东西。
+        let data_dir = crate::testutil::scratch_dir("ios-bridge-e2e");
+        let cfg_json = format!(
+            r#"{{"brand":"mx","data_directory":{},"endpoint":{{"ports":{{"range":[{base},{}]}}}}}}"#,
+            serde_json::Value::String(data_dir.display().to_string()),
+            base + 5
+        );
+
+        let started = start_impl(&cfg_json);
+        let status: serde_json::Value = serde_json::from_str(&started).expect("status JSON");
+        assert_eq!(status["phase"], "running", "启动后应为 running：{started}");
+
+        let socks_port = status["socks_port"].as_u64().unwrap() as u16;
+        let web_port = status["web_port"].as_u64().unwrap() as u16;
+        assert!(socks_port != 0 && web_port != 0, "两个端口都要上报：{started}");
+        assert!(
+            (base..=base + 5).contains(&socks_port) && (base..=base + 5).contains(&web_port),
+            "端口应取自配置区间 {base}..={}：{started}",
+            base + 5
+        );
+        assert_ne!(
+            socks_port, web_port,
+            "SOCKS5 与 web 必须是区间里两个不同的端口（同号就意味着有一个没绑上）"
+        );
+
+        let radar_url = status["endpoint"]["radar_url"].as_str().unwrap().to_string();
+        assert!(
+            radar_url.contains(&format!(":{web_port}/")),
+            "radar_url 必须指向 web 端口 {web_port}：{radar_url}"
+        );
+
+        // 真发一次请求：连 radar_url 里的端口，要 HTTP 200。
+        let (host, rest) = radar_url
+            .trim_start_matches("http://")
+            .split_once('/')
+            .expect("radar_url 形状");
+        let mut stream = std::net::TcpStream::connect(host).unwrap_or_else(|e| {
+            panic!("按状态里的地址 {host} 连不上（这正是真机的症状）：{e}")
+        });
+        use std::io::{Read, Write};
+        stream
+            .write_all(format!("GET /{rest} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes())
+            .unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        assert!(
+            response.starts_with("HTTP/1.1 200"),
+            "雷达页没被服务：{}",
+            response.lines().next().unwrap_or("")
+        );
+        assert!(response.contains("battle-ready"), "返回的不是雷达页");
+        assert!(response.contains("</html>"), "页面不完整");
+
+        let stopped = stop_impl();
+        assert!(
+            stopped.contains("\"phase\":\"stopping\""),
+            "停止后应上报 stopping：{stopped}"
+        );
     }
 }

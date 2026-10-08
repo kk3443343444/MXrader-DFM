@@ -597,6 +597,14 @@ impl AppState {
 
     pub fn status_snapshot(&self) -> StatusSnapshot {
         let port = self.primary_port();
+        // 雷达页面跑在 **web 端口**上，而它是区间里与 SOCKS5 不同的另一个端口。
+        // 以前这里两个 URL 都用 primary(=SOCKS5) 端口，结果 iOS 的 WebView 去连
+        // SOCKS5 的端口 → "雷达页面加载失败：无法连接本机雷达端口"。
+        // web 还没绑定时（启动早期）退回 primary，免得 URL 里出现 :0。
+        let web = match self.web_port() {
+            0 => port,
+            w => w,
+        };
         let addr = match self.display_address() {
             Some(ip) => ip.to_string(),
             None => "127.0.0.1".to_string(),
@@ -607,16 +615,16 @@ impl AppState {
             mode: "ios_receiver".to_string(),
             version: crate::VERSION.to_string(),
             socks_port: port,
-            web_port: self.web_port(),
+            web_port: web,
             primary_port: port,
             data_directory: self.inner.data_directory.display().to_string(),
             web_session_token: self.inner.web_session_token.clone(),
             endpoint: EndpointStatus {
                 interface: self.interface().to_string(),
                 display_address: addr.clone(),
-                radar_display_address: format!("http://{addr}:{port}/battle.html?brand={brand}"),
+                radar_display_address: format!("http://{addr}:{web}/battle.html?brand={brand}"),
                 socks_url: format!("socks5://{addr}:{port}"),
-                radar_url: format!("http://127.0.0.1:{port}/battle.html?brand={brand}"),
+                radar_url: format!("http://127.0.0.1:{web}/battle.html?brand={brand}"),
             },
             runtime_status: self.runtime_status(),
             counters: self.inner.counters.snapshot(),
@@ -712,6 +720,47 @@ mod tests {
         assert!(!is_private_ipv4(&"127.0.0.1".parse().unwrap()));
         assert!(!is_private_ipv4(&"8.8.8.8".parse().unwrap()));
         assert!(!is_private_ipv4(&"169.254.1.2".parse().unwrap()));
+    }
+
+    /// 回归测试：雷达 URL 必须用 **web 端口**，不是 SOCKS5 端口。
+    ///
+    /// 真机症状（两部 iPhone 上都复现）：状态里 phase=running、primary_port/web_port
+    /// 都是 2026，但 WebView 连 127.0.0.1:2026 只能打到 SOCKS5 监听器，于是弹
+    /// "雷达页面加载失败：无法连接本机雷达端口"。根因是 web::serve 其实是自己在端口
+    /// 区间里另找一个可用端口（2027 之类），而我们上报的还是 SOCKS5 那个号。
+    #[test]
+    fn radar_url_uses_the_web_port_not_the_socks_port() {
+        let cfg = crate::config::Config::default();
+        let st = AppState::new(&cfg, "tok".into());
+        st.set_display_address("192.168.1.50".parse().unwrap());
+
+        // 只绑了 SOCKS5 时（web 还没起来）：退回 primary，但绝不能出现 :0
+        st.set_ports(2025, 0);
+        let snap = st.status_snapshot();
+        assert_eq!(snap.web_port, 2025, "web 未绑定时退回 primary，避免 :0");
+        assert!(snap.endpoint.radar_url.contains(":2025/"), "{}", snap.endpoint.radar_url);
+
+        // 两个端口都绑上：雷达用 2027（web），SOCKS5 仍报 2026
+        st.set_ports(2026, 2027);
+        let snap = st.status_snapshot();
+        assert_eq!(snap.socks_port, 2026);
+        assert_eq!(snap.primary_port, 2026);
+        assert_eq!(snap.web_port, 2027);
+        assert!(
+            snap.endpoint.radar_url.ends_with(":2027/battle.html?brand=mx"),
+            "radar_url 必须指向 web 端口: {}",
+            snap.endpoint.radar_url
+        );
+        assert!(
+            snap.endpoint.radar_display_address.contains(":2027/"),
+            "局域网雷达地址同样用 web 端口: {}",
+            snap.endpoint.radar_display_address
+        );
+        assert!(
+            snap.endpoint.socks_url.ends_with(":2026"),
+            "socks_url 必须指向 SOCKS5 端口: {}",
+            snap.endpoint.socks_url
+        );
     }
 
     #[tokio::test]

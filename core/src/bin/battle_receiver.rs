@@ -117,7 +117,6 @@ async fn main() -> anyhow::Result<()> {
     // 先绑端口，再定状态（与 iOS 侧同一条路径：端口全占就失败）。
     let listener = battle_proxy::socks5::run(state.clone(), engine.clone(), cfg.clone()).await?;
     let port = listener.port();
-    state.set_ports(port, port);
 
     // 局域网展示地址
     let lan = primary_outbound_ipv4()
@@ -128,6 +127,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let web = battle_proxy::web::serve(state.clone(), engine.clone(), cfg.clone()).await?;
+    // 雷达页在 **web 端口**上，它与 SOCKS5 是区间里两个不同的端口。
+    // 以前这里是 set_ports(port, port)，于是打印出来的"雷达页面"地址指向 SOCKS5 端口，
+    // 浏览器打开只会看到握手超时；iOS 侧同一个 bug 会直接显示"雷达页面加载失败"。
+    let web_port = web.port();
+    state.set_ports(port, web_port);
     state.set_phase(battle_proxy::state::Phase::Running);
 
     if auto_capture {
@@ -149,12 +153,12 @@ async fn main() -> anyhow::Result<()> {
     };
     println!("\n=== battle_receiver 已启动 ===");
     println!("  SOCKS5（给 B 机填）: socks5://{addr}:{port}   <- 必须同时开 UDP 转发");
-    println!("  雷达页面:            http://127.0.0.1:{port}/battle.html?brand={}", cfg.brand);
-    println!("  局域网雷达页:        http://{addr}:{port}/battle.html?brand={}", cfg.brand);
-    println!("  Hiddify 配置:        http://{addr}:{port}/api/socks5/hiddify.json");
-    println!("  状态 JSON:           http://127.0.0.1:{port}/api/status");
+    println!("  雷达页面:            http://127.0.0.1:{web_port}/battle.html?brand={}", cfg.brand);
+    println!("  局域网雷达页:        http://{addr}:{web_port}/battle.html?brand={}", cfg.brand);
+    println!("  Hiddify 配置:        http://{addr}:{web_port}/api/socks5/hiddify.json");
+    println!("  状态 JSON:           http://127.0.0.1:{web_port}/api/status");
     println!("  admin token:         {}", state.admin_token());
-    println!("  监听:                {}", listener.local_addr());
+    println!("  监听:                SOCKS5 {} / web {}", listener.local_addr(), web.local_addr());
     println!("  数据目录:            {}", cfg.data_directory.display());
     println!("  web 根目录:          {}", battle_proxy::web::embed::web_root());
     println!("\n按 Ctrl+C 停止。");
