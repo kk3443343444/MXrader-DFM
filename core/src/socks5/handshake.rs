@@ -1191,7 +1191,7 @@ mod tests {
             parsed.target,
             SocksTarget::Domain("example.com".to_string(), 443)
         );
-        assert_eq!(parsed.header_len(), 16);
+        assert_eq!(parsed.header_len(), 18);
         assert_eq!(parsed.payload, b"hi");
     }
 
@@ -1223,10 +1223,8 @@ mod tests {
     fn greeting_length_cap_is_enforced() {
         // NMETHODS = 0xFF would need 257 bytes; the cap only rejects a bogus huge count.
         assert_eq!(MAX_GREETING_LEN, 512);
-        assert_eq!(
-            (MAX_GREETING_LEN - 2) as u8,
-            u8::MAX,
-            "510 method bytes is the documented maximum"
-        );
+        // The documented maximum is 510 method bytes, so every NMETHODS a single length byte can
+        // express (0..=255) stays inside the cap.
+        assert!((MAX_GREETING_LEN - 2) >= u8::MAX as usize);
     }
 }

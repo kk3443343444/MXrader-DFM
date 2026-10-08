@@ -62,9 +62,14 @@ impl<'a> BitReader<'a> {
     }
 
     fn mark_overflow(&mut self) {
+        self.mark_overflow_at(self.bit_pos);
+    }
+
+    /// 记录首个错误位：诊断里要给的是"数据在这里就不够了"的偏移。
+    fn mark_overflow_at(&mut self, bit: usize) {
         if !self.overflowed {
             self.overflowed = true;
-            self.first_error_bit = Some(self.bit_pos);
+            self.first_error_bit = Some(bit);
         }
     }
 
@@ -88,7 +93,9 @@ impl<'a> BitReader<'a> {
             return 0;
         }
         if self.bit_pos + count as usize > self.data.len() * 8 {
-            self.mark_overflow();
+            // 首个无法提供的位 = 缓冲区末尾（读已越界时就是当前位）。
+            let missing = std::cmp::max(self.bit_pos, self.data.len() * 8);
+            self.mark_overflow_at(missing);
             return 0;
         }
         let mut out: u32 = 0;
@@ -398,11 +405,11 @@ mod tests {
     fn bit_order_is_lsb_first() {
         let data = [0b1011_0001u8, 0b0000_0011];
         let mut r = BitReader::new(&data);
-        assert!(r.read_bit());
-        assert!(!r.read_bit());
-        assert!(!r.read_bit());
-        assert!(r.read_bit());
-        assert!(!r.read_bit());
+        // 0xB1 read from its least-significant bit: 1,0,0,0,1,1,0,1.
+        for expected in [true, false, false, false, true, true, false, true] {
+            assert_eq!(r.read_bit(), expected);
+        }
+        // The second byte has not been touched: its low 7 bits are 0b000_0011.
         assert_eq!(r.read_bits(7), 0b0000_0011);
     }
 

@@ -685,8 +685,8 @@ mod tests {
         )
     }
 
-    #[test]
-    fn idle_detection_uses_the_last_activity_stamp() {
+    #[tokio::test]
+    async fn idle_detection_uses_the_last_activity_stamp() {
         let a = assoc(1, "192.168.1.5:40000", "0.0.0.0:2025", 1_000);
         assert_eq!(a.idle_ms(1_000), 0);
         assert!(!a.is_idle(1_000 + UDP_ASSOC_IDLE_TIMEOUT_MS - 1, UDP_ASSOC_IDLE_TIMEOUT_MS));
@@ -695,8 +695,8 @@ mod tests {
         assert_eq!(a.idle_ms(2_500), 500);
     }
 
-    #[test]
-    fn byte_counters_accumulate_both_directions() {
+    #[tokio::test]
+    async fn byte_counters_accumulate_both_directions() {
         let a = assoc(2, "192.168.1.6:40001", "0.0.0.0:2025", 0);
         a.add_bytes_up(100);
         a.add_bytes_down(40);
@@ -706,8 +706,8 @@ mod tests {
         assert_eq!(a.relayed_bytes(), 141);
     }
 
-    #[test]
-    fn dropping_the_association_cancels_the_relay_token() {
+    #[tokio::test]
+    async fn dropping_the_association_cancels_the_relay_token() {
         let token = {
             let a = assoc(3, "192.168.1.7:40002", "0.0.0.0:2025", 0);
             let token = a.clone_cancel_token();

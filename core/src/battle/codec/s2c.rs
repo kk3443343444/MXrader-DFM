@@ -55,14 +55,14 @@ impl S2cStream {
 
     /// 喂入原始字节（调用方已做传输层解密）。
     pub fn feed(&mut self, data: &[u8]) {
-        if self.buf.len() + data.len() > self.max_buffered {
-            // 丢最旧的：宁可丢历史也不要 OOM。
-            let overflow = (self.buf.len() + data.len()).saturating_sub(self.max_buffered);
-            self.buf.advance(overflow.min(self.buf.len()));
+        self.buf.extend_from_slice(data);
+        if self.buf.len() > self.max_buffered {
+            // 丢最旧的：宁可丢历史也不要 OOM，并且缓存量必须落在上限内。
+            let overflow = self.buf.len() - self.max_buffered;
+            self.buf.advance(overflow);
             self.dropped += overflow as u64;
             tracing::warn!(target: "battle_proxy", dropped = overflow, "s2c buffer overflow");
         }
-        self.buf.extend_from_slice(data);
     }
 
     /// 取出一条完整消息（无则 `None`）。
