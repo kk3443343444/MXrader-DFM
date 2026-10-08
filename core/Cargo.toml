@@ -74,7 +74,11 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
-strip = "symbols"
+# 注意：这里**不能**用 strip = "symbols"。
+# 本 crate 的产物是 staticlib（libbattle_proxy.a），要交给 Xcode/clang 去链接。
+# strip=symbols 会把目标文件的符号表剥掉，而链接器正是靠符号名解析的 —— 结果是
+# 链接阶段报一堆 "Undefined symbols: _battle_proxy_start ..."，看起来像静态库没被
+# 链进去。最终 app 二进制要不要 strip 由 Xcode 的 STRIP_INSTALLED_PRODUCT 决定。 
 
 # iOS cross-compilation targets
 # rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios

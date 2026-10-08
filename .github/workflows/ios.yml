@@ -121,9 +121,11 @@ jobs:
             tail -n 400 rust-build.log 2>/dev/null || echo '(no rust-build.log)'
             echo '```'
             echo
-            echo '## xcodebuild.log (error/warning lines)'
+            echo '## xcodebuild.log (error / linker lines)'
             echo '```'
-            grep -E "error:|warning:|fatal error:|BUILD FAILED|The following build commands" xcodebuild.log 2>/dev/null | head -n 200 \
+            # 链接失败的关键行不是 "error:" 而是 "Undefined symbols" 那段，单独抓。
+            grep -nE "error:|warning: .*deprecated|fatal error:|BUILD FAILED|Undefined symbols|symbol\(s\) not found|referenced from:|duplicate symbol|ld: |library not found|framework not found|The following build commands" xcodebuild.log 2>/dev/null \
+              | head -n 250 \
               || tail -n 200 xcodebuild.log 2>/dev/null \
               || echo '(no xcodebuild.log)'
             echo '```'
