@@ -1,0 +1,87 @@
+{
+  "_comment": "per-map calibration for world->lat/lng projection. Units: origin_x/origin_y in degrees (world metres multiplied by scale), scale in degrees per metre, yaw_offset_deg in degrees added to the incoming yaw, yaw_sign is +1 or -1 multiplied into the incoming yaw. min_x/min_y/max_x/max_y are the world-metre extents used to derive a sensible default zoom. These MUST be calibrated per game version by matching two known in-game landmarks - see web/tiles/README.md.",
+  "_note": "Any field absent here falls back to the hello.world values sent by the server over /ws, then to the defaults in radar.js (origin 0, scale 1e-5, yaw_offset_deg 0, yaw_sign +1). The shipped yaw knobs are IDENTITY because INTERFACES.md section 5 already defines the incoming yaw as '0 = north, clockwise positive'; set yaw_offset_deg = -90 and yaw_sign = -1 only for builds/levels that emit raw UE yaw.",
+  "_schema": {
+    "origin_x": "degree longitude offset in worldToLatLng: lng = origin_x + x * scale",
+    "origin_y": "degree latitude offset in worldToLatLng: lat = origin_y + z * scale",
+    "scale": "degrees per metre (both axes; the map is treated as an equirectangular patch)",
+    "yaw_offset_deg": "added to UE yaw before drawing the heading arrow (the 3D rotation-correction knob #1)",
+    "yaw_sign": "+1/-1 multiplier on raw UE yaw, for maps/protocol revisions where yaw runs counter-clockwise (knob #2)",
+    "min_x": "world-metre west extent",
+    "min_y": "world-metre south extent",
+    "max_x": "world-metre east extent",
+    "max_y": "world-metre north extent"
+  },
+  "ZeroDam": {
+    "name_cn": "零号大坝",
+    "origin_x": 0,
+    "origin_y": 0,
+    "scale": 0.00001,
+    "yaw_offset_deg": 0,
+    "min_x": -600,
+    "min_y": -600,
+    "max_x": 600,
+    "max_y": 600,
+    "yaw_sign": 1
+  },
+  "Layali": {
+    "name_cn": "长弓溪谷",
+    "origin_x": 0,
+    "origin_y": 0,
+    "scale": 0.00001,
+    "yaw_offset_deg": 0,
+    "min_x": -800,
+    "min_y": -800,
+    "max_x": 800,
+    "max_y": 800,
+    "yaw_sign": 1
+  },
+  "Bakesh": {
+    "name_cn": "巴克什",
+    "origin_x": 0,
+    "origin_y": 0,
+    "scale": 0.00001,
+    "yaw_offset_deg": 0,
+    "min_x": -700,
+    "min_y": -700,
+    "max_x": 700,
+    "max_y": 700,
+    "yaw_sign": 1
+  },
+  "Brakesh": {
+    "name_cn": "巴克什（别名）",
+    "origin_x": 0,
+    "origin_y": 0,
+    "scale": 0.00001,
+    "yaw_offset_deg": 0,
+    "min_x": -700,
+    "min_y": -700,
+    "max_x": 700,
+    "max_y": 700,
+    "yaw_sign": 1
+  },
+  "SpaceCity": {
+    "name_cn": "航天基地",
+    "origin_x": 0,
+    "origin_y": 0,
+    "scale": 0.00001,
+    "yaw_offset_deg": 0,
+    "min_x": -900,
+    "min_y": -900,
+    "max_x": 900,
+    "max_y": 900,
+    "yaw_sign": 1
+  },
+  "default": {
+    "name_cn": "默认标定",
+    "origin_x": 0,
+    "origin_y": 0,
+    "scale": 0.00001,
+    "yaw_offset_deg": 0,
+    "min_x": 0,
+    "min_y": 0,
+    "max_x": 0,
+    "max_y": 0,
+    "yaw_sign": 1
+  }
+}

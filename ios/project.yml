@@ -1,0 +1,120 @@
+# XcodeGen spec for the iOS shell of MXrader-DFM.
+#
+#   cd ios && xcodegen generate && open BattleReceiverOpen.xcodeproj
+#
+# The project file (BattleReceiverOpen.xcodeproj) is generated output and is not
+# checked in by hand - see ios/README.md.
+#
+# The Rust static library (core -> libbattle_proxy.a) is built by the
+# "Build Rust static library" pre-build script phase, which calls
+# ../scripts/build_rust.sh from the ios directory.
+
+name: BattleReceiverOpen
+
+options:
+  bundleIdPrefix: com.mxrader
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "16.0"
+  groupSortPosition: top
+  generateEmptyDirectories: false
+
+settings:
+  base:
+    ENABLE_BITCODE: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    ALWAYS_SEARCH_USER_PATHS: NO
+    CLANG_ENABLE_MODULES: YES
+    CLANG_ENABLE_OBJC_ARC: YES
+    SWIFT_STRICT_CONCURRENCY: minimal
+    OTHER_LDFLAGS: "$(inherited) -ObjC"
+    GCC_WARN_UNDECLARED_SELECTOR: YES
+    GCC_WARN_UNINITIALIZED_AUTOS: YES
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+
+targets:
+  BattleReceiverOpen:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: BattleReceiverOpen
+        name: BattleReceiverOpen
+      # 雷达前端：以文件夹形式打进 app bundle（BattleReceiverOpen.app/web/…），
+      # Rust 侧的静态文件服务直接从 bundle 里读，Swift 启动时把该绝对路径
+      # 通过配置 JSON 的 `web_root` 传给核心（见 docs/INTERFACES.md §2）。
+      # buildPhase: resources 是关键 —— 少了它会当成源码编进去。
+      - path: ../web
+        name: web
+        type: folder
+        buildPhase: resources
+    dependencies:
+      # The Rust static library. Produced by the pre-build script below; the
+      # path is stable so the whole app links in one pass.
+      - framework: ../core/target/ios/libbattle_proxy.a
+        embed: false
+      - sdk: libc++.tbd
+      - sdk: libresolv.tbd
+      - sdk: Security.framework
+      - sdk: Network.framework
+      - sdk: WebKit.framework
+      - sdk: CoreImage.framework
+    preBuildScripts:
+      - name: Build Rust static library
+        basedOnDependencyAnalysis: false
+        showEnvVars: false
+        script: |
+          set -eu
+          cd "${SRCROOT}"
+          if [ ! -x ../scripts/build_rust.sh ]; then
+            echo "error: ../scripts/build_rust.sh is missing or not executable" >&2
+            exit 1
+          fi
+          ../scripts/build_rust.sh
+          LIB="../core/target/ios/libbattle_proxy.a"
+          if [ ! -f "${LIB}" ]; then
+            echo "error: ${LIB} not produced by scripts/build_rust.sh" >&2
+            exit 1
+          fi
+          echo "libbattle_proxy.a: $(wc -c < "${LIB}") bytes"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mxrader.monstervision
+        PRODUCT_NAME: BattleReceiverOpen
+        PRODUCT_MODULE_NAME: BattleReceiverOpen
+        INFOPLIST_FILE: BattleReceiverOpen/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CURRENT_PROJECT_VERSION: "32"
+        MARKETING_VERSION: "2.3.7"
+        CODE_SIGN_ENTITLEMENTS: BattleReceiverOpen/BattleReceiverOpen.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        SWIFT_OBJC_BRIDGING_HEADER: BattleReceiverOpen/Bridge/BattleReceiverOpen-Bridging-Header.h
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/BattleReceiverOpen/Bridge $(SRCROOT)/../core/include $(SRCROOT)/../core"
+        OTHER_LDFLAGS: "$(inherited) -lc++ -lresolv -framework Security -framework Network -framework WebKit -framework CoreImage"
+        ENABLE_BITCODE: NO
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        SWIFT_EMIT_LOC_STRINGS: NO
+
+schemes:
+  BattleReceiverOpen:
+    build:
+      targets:
+        BattleReceiverOpen: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

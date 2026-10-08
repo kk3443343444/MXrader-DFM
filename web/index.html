@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-battle-ready="0">
+<head>
+<meta charset="utf-8" />
+<title>MXrader 雷达</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="format-detection" content="telephone=no" />
+<meta name="color-scheme" content="dark" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="MXrader" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<noscript>
+  <div class="noscript-warn">
+    <h1>需要启用 JavaScript</h1>
+    <p>本页面是本机雷达转发的实时视图，必须由浏览器执行脚本才能绘制地图与玩家位置。</p>
+    <p>请在 Safari / Chrome 设置中开启 JavaScript 后刷新本页（局域网地址形如 <code>http://&lt;本机IP&gt;:2025/battle.html?brand=mx</code>）。</p>
+  </div>
+</noscript>
+
+<div id="app">
+  <!-- 地图容器：leaflet-lite 会把 .leaflet-container 类挂在这个节点上 -->
+  <div id="map" class="map" aria-label="战术雷达地图"></div>
+
+  <!-- 顶部状态栏 -->
+  <header id="statusbar" class="hud hud-top">
+    <div class="sb-left">
+      <span class="sb-brand">MXrader</span>
+      <span id="conn-badge" class="badge badge-warn" data-state="connecting">连接中</span>
+      <span id="readonly-badge" class="badge badge-amber" hidden>只读</span>
+    </div>
+    <div class="sb-mid">
+      <span id="stat-map" class="stat">地图 <b>—</b></span>
+      <span id="stat-tick" class="stat">tick <b>—</b></span>
+      <span id="stat-players" class="stat">目标 <b>0</b></span>
+      <span id="stat-fps" class="stat">fps <b>—</b></span>
+    </div>
+    <div class="sb-right">
+      <button id="btn-netlog" type="button" class="icon-btn" title="网络日志">日志</button>
+      <button id="btn-diag" type="button" class="icon-btn" title="诊断信息">诊断</button>
+      <button id="btn-legend" type="button" class="icon-btn only-mobile" title="图例">图例</button>
+      <button id="btn-players" type="button" class="icon-btn only-mobile" title="目标列表">列表</button>
+    </div>
+  </header>
+
+  <!-- 左侧图例 / 图层开关 -->
+  <aside id="legend" class="hud hud-left panel">
+    <div class="panel-head">
+      <h2>图层</h2>
+      <button id="legend-collapse" type="button" class="icon-btn" title="折叠">−</button>
+    </div>
+    <div class="panel-body" id="legend-body">
+      <div class="switches" id="layer-switches"><!-- radar.js 注入 --></div>
+      <div class="divider"></div>
+      <h3>视角</h3>
+      <div class="seg" id="mode-seg" role="radiogroup" aria-label="视角模式">
+        <button type="button" class="seg-item" data-mode="north" role="radio" aria-checked="true">2D 北向上</button>
+        <button type="button" class="seg-item" data-mode="follow" role="radio" aria-checked="false">跟随朝向</button>
+        <button type="button" class="seg-item" data-mode="3d" role="radio" aria-checked="false">3D</button>
+      </div>
+      <label class="switch" id="auto-center-switch" style="margin-top:6px">
+        <input type="checkbox" id="auto-center" checked />
+        <span class="tick"></span>
+        <span class="dot" style="background:var(--self)"></span>
+        <span>跟随朝向时自动居中</span>
+      </label>
+      <div class="divider"></div>
+      <h3>图例</h3>
+      <ul class="legend-list">
+        <li><i class="lg lg-self"></i>自身（圆环）</li>
+        <li><i class="lg lg-friend"></i>队友（三角）</li>
+        <li><i class="lg lg-enemy"></i>敌人（三角）</li>
+        <li><i class="lg lg-ai"></i>人机</li>
+        <li><i class="lg lg-dead"></i>已死亡 / 丢失</li>
+        <li><i class="lg lg-box"></i>死亡盒（方块）</li>
+        <li><i class="lg lg-loot"></i>物资（菱形）</li>
+        <li><i class="lg lg-trace"></i>弹道</li>
+      </ul>
+      <div class="divider"></div>
+      <p class="hint" id="legend-hint">等待 <code>/ws</code> 数据…</p>
+    </div>
+  </aside>
+
+  <!-- 右侧目标列表 -->
+  <aside id="players" class="hud hud-right panel">
+    <div class="panel-head">
+      <h2>目标列表</h2>
+      <button id="players-collapse" type="button" class="icon-btn" title="折叠">−</button>
+    </div>
+    <div class="panel-body" id="players-body">
+      <div class="search-row">
+        <input id="player-search" type="search" inputmode="search" autocomplete="off" placeholder="搜索名字 / 武器" aria-label="搜索目标" />
+        <button id="btn-center-self" type="button" class="icon-btn" title="回到自身">居中</button>
+      </div>
+      <ol id="player-list" class="player-list"></ol>
+      <p id="player-empty" class="hint">暂无目标</p>
+      <div class="divider"></div>
+      <h3>击杀播报</h3>
+      <div id="kill-feed" class="kill-feed"><p class="hint">暂无击杀</p></div>
+    </div>
+  </aside>
+
+  <!-- 底部比例尺 -->
+  <footer id="scalebar" class="hud hud-bottom">
+    <div class="scale-wrap">
+      <div id="scale-bar" class="scale-bar"><span></span></div>
+      <span id="scale-label" class="scale-label">— m</span>
+    </div>
+    <div class="sb-bottom-right">
+      <span id="stat-zoom" class="stat">缩放 <b>—</b></span>
+      <span id="stat-coords" class="stat">—</span>
+    </div>
+  </footer>
+
+  <!-- 诊断面板 -->
+  <section id="diag-panel" class="hud overlay-panel" hidden>
+    <div class="panel-head">
+      <h2>诊断</h2>
+      <button id="diag-close" type="button" class="icon-btn" title="关闭">×</button>
+    </div>
+    <div class="panel-body">
+      <table class="kv" id="diag-table"><tbody></tbody></table>
+    </div>
+  </section>
+
+  <!-- 网络日志面板 -->
+  <section id="netlog-panel" class="hud overlay-panel" hidden>
+    <div class="panel-head">
+      <h2>网络日志</h2>
+      <button id="netlog-close" type="button" class="icon-btn" title="关闭">×</button>
+    </div>
+    <div class="panel-body">
+      <table class="kv"><tbody id="netlog-table"></tbody></table>
+      <h3>最后一条消息</h3>
+      <pre id="netlog-json" class="json">—</pre>
+      <h3>事件</h3>
+      <pre id="netlog-events" class="json">—</pre>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+</div>
+
+<script src="/leaflet-lite.js"></script>
+<script src="/radar.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Rust
+core/target/
+**/*.rs.bk
+
+# Xcode / iOS
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/build/
+ios/DerivedData/
+*.xcuserstate
+xcuserdata/
+dist/
+*.ipa
+
+# 运行时产物
+core/assets/*.ndjson
+battle-*.ndjson
+
+# Python
+__pycache__/
+*.pyc
+
+# 本地校准数据（每台机器/每张图都要重标，不入库）
+web/tiles/**/*.png
+!web/tiles/README.md

@@ -1,0 +1,80 @@
+[package]
+name = "battle_proxy"
+version = "2.3.7"
+edition = "2021"
+rust-version = "1.79"
+description = "Delta Force Mobile LAN radar receiver core (socks5 tap + UE replication decoder + local radar web service)"
+license = "proprietary"
+
+[lib]
+name = "battle_proxy"
+# staticlib -> libbattle_proxy.a, linked straight into the Swift app binary
+# (the reference build ships a single MH_EXECUTE with both Swift and Rust symbols
+#  and no Frameworks/ directory, which is what a staticlib-linked build produces).
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# --- async runtime / HTTP / WS ---
+tokio = { version = "1.52", features = ["rt-multi-thread", "net", "time", "sync", "macros", "io-util", "signal"] }
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
+axum = { version = "0.8", features = ["ws", "json", "query", "tokio", "http1"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["fs", "cors", "trace"] }
+hyper = { version = "1.10", features = ["http1", "server"] }
+# Sink/Stream are needed to drive one WebSocket from a single `poll` step (see web/ws.rs).
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tungstenite = "0.29"
+tokio-tungstenite = "0.29"
+
+# --- serialization ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bytes = "1.12"
+base64 = "0.22"
+hex = "0.4"
+uuid = { version = "1.24", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# --- crypto / compression used by the game transport ---
+aes = "0.8"
+cipher = "0.4"
+lz4_flex = "0.11"
+sha2 = "0.10"
+hmac = "0.12"
+rand = "0.9"
+
+# --- concurrency / diagnostics ---
+dashmap = "6.2"
+parking_lot = "0.12"
+once_cell = "1.21"
+arc-swap = "1.9"
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+libc = "0.2"
+
+# --- license / announcement HTTP client ---
+# 可选：只有需要"联网校验卡密 / 拉公告"时才打开。默认关闭，这样
+# `cargo test` / `cargo build` 不需要 cmake、nasm 或任何 C 工具链。
+#
+# 注意 reqwest 0.13 之后特性名变了：旧版的 `rustls-tls` 现在叫 `rustls`
+# （0.11/0.12 的名字在这里会直接解析失败）。
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"], optional = true }
+
+[features]
+default = []
+# 开启后 card_activation::activate 与 announcement::refresh 才能走网络；
+# 关闭时两者退化为纯离线（本地凭据 + 磁盘缓存仍完整可用）。
+# 注意：rustls 会通过 aws-lc-rs 引入一个 C 依赖，开这个特性需要 cmake（Windows 还要 NASM）。
+license-net = ["dep:reqwest"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+# iOS cross-compilation targets
+# rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios

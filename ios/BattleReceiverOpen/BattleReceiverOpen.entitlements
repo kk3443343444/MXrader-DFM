@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- No debugger attachment on the shipped receiver. -->
+	<key>get-task-allow</key>
+	<false/>
+
+	<!-- Replaced by the provisioning profile at build time. -->
+	<key>application-identifier</key>
+	<string>$(AppIdentifierPrefix)com.mxrader.monstervision</string>
+
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.mxrader.monstervision</string>
+	</array>
+
+	<!-- Bonjour / mDNS publication of _battleproxy._tcp and _battleproxy._udp.
+	     Required on iOS 14+; this entitlement is granted by Apple per app. -->
+	<key>com.apple.developer.networking.multicast</key>
+	<true/>
+
+	<!-- Reading the current SSID / LAN address for the pairing panel. -->
+	<key>com.apple.developer.networking.wifi-info</key>
+	<true/>
+</dict>
+</plist>

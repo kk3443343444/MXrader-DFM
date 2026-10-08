@@ -1,0 +1,105 @@
+# 云上打 IPA（不需要自己有 Mac）
+#
+# 为什么需要它：iOS 可执行文件必须由 macOS + Xcode + iOS SDK 编译，Windows/Linux
+# 都做不到。GitHub Actions 免费提供 macOS runner，于是"打包成 IPA"这件事可以完全
+# 在云上完成：它编出的 IPA 是**未签名**的，你用 Sideloadly / AltStore 在本地用自己
+# 的 Apple ID 签名后即可安装（见 scripts/make_unsigned_ipa.sh 的说明）。
+#
+# 用法：
+#   1) 把这个仓库推到 GitHub（public 免费额度足够；private 每月 2000 分钟也够用）
+#   2) Actions → "iOS IPA" → Run workflow
+#   3) 跑完在 Artifacts 里下载 MXrader-unsigned-ipa
+#
+# 注意：swift 那 13 个文件在本机从未编译过，第一次 CI 极可能报错 —— 这属于预期，
+# 那些错误只有在 macOS 上才会暴露。把日志贴回来即可继续修。
+
+name: iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'core/**'
+      - 'ios/**'
+      - 'web/**'
+      - 'scripts/**'
+      - '.github/workflows/ios.yml'
+
+jobs:
+  build-ipa:
+    # macos-15 自带 Xcode 16/26 系列；需要 iOS 16 以上的 SDK
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rust toolchain + iOS targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            core/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('core/Cargo.lock', 'core/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: XcodeGen
+        run: brew install xcodegen
+
+      - name: Build Rust static library (device + sim, universal)
+        run: ./scripts/build_rust.sh
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build app (unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project BattleReceiverOpen.xcodeproj \
+            -scheme BattleReceiverOpen \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath ../build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Assemble unsigned IPA
+        run: |
+          APP="build/dd/Build/Products/Release-iphoneos/BattleReceiverOpen.app"
+          ls -la "$(dirname "$APP")"
+          ./scripts/make_unsigned_ipa.sh "$APP" "dist/BattleReceiverOpen-mxrader-r39-unsigned.ipa"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MXrader-unsigned-ipa
+          path: dist/*.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      # 编译失败时把完整日志也存下来，方便贴回来定位（iOS 部分本机没法预演）
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build/dd/Logs/**
+            ios/*.log
+          if-no-files-found: ignore
+          retention-days: 7

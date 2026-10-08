@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BattleBrandVariant</key>
+	<string>mx</string>
+
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh-Hans</string>
+	<key>CFBundleDisplayName</key>
+	<string>MXrader 三角洲</string>
+	<key>CFBundleExecutable</key>
+	<string>BattleReceiverOpen</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.mxrader.monstervision</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>BattleReceiverOpen</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.3.7</string>
+	<key>CFBundleVersion</key>
+	<string>32</string>
+
+	<key>CFBundleIconFiles</key>
+	<array>
+		<string>MXIcon-60</string>
+		<string>MXIcon-76</string>
+		<string>MXIcon-83.5</string>
+		<string>MXIcon-40</string>
+		<string>MXIcon-29</string>
+		<string>MXIcon-20</string>
+	</array>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>MXIcon-60</string>
+				<string>MXIcon-76</string>
+				<string>MXIcon-83.5</string>
+				<string>MXIcon-40</string>
+				<string>MXIcon-29</string>
+				<string>MXIcon-20</string>
+			</array>
+			<key>UIPrerenderedIcon</key>
+			<false/>
+		</dict>
+	</dict>
+	<key>CFBundleIcons~ipad</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>MXIcon-76</string>
+				<string>MXIcon-83.5</string>
+				<string>MXIcon-60</string>
+				<string>MXIcon-40</string>
+				<string>MXIcon-29</string>
+				<string>MXIcon-20</string>
+			</array>
+			<key>UIPrerenderedIcon</key>
+			<false/>
+		</dict>
+	</dict>
+
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>MinimumOSVersion</key>
+	<string>16.0</string>
+
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_battleproxy._tcp</string>
+		<string>_battleproxy._udp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>本应用需要访问本地网络，用于在 2025–2045 端口段建立 SOCKS5（TCP）与 UDP 中继隧道，并让运行游戏的另一台设备通过小火箭/Hiddify 连接本机接收器；同时用于广播与发现局域网内的接收服务。</string>
+
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UIRequiresFullScreen</key>
+	<false/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+</dict>
+</plist>

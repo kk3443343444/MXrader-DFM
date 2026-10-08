@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-battle-ready="1"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>卡密激活</title><style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#0c0d12;color:#f4f4f6;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei UI",sans-serif}
+.wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;padding:24px}
+.logo{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;
+  font-weight:900;font-size:20px;color:#101217;
+  background:linear-gradient(145deg,#8de8b6,#37c47f)}
+h1{font-size:19px;margin:0;font-weight:700}
+small{color:#7d8a84;font-size:12px;line-height:1.6;text-align:center}
+.card{width:100%;max-width:420px;padding:18px;border:1px solid #262832;border-radius:16px;
+  background:linear-gradient(145deg,#181a21,#111218);display:grid;gap:12px}
+input{width:100%;height:46px;padding:0 13px;border-radius:11px;border:1px solid #343640;
+  background:#0e0f14;color:#f7f7f8;font:14px ui-monospace,Menlo,monospace;letter-spacing:1px}
+button{height:46px;border:0;border-radius:11px;font-size:15px;font-weight:700;color:#101318;
+  background:linear-gradient(135deg,#8de8b6,#37c47f)}
+button:disabled{opacity:.5}
+.msg{min-height:18px;font-size:12.5px;color:#fb7185;word-break:break-all}
+.ok{color:#4ade80}
+</style></head><body><div id="app" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0"><div class="leaflet-container" style="width:1px;height:1px"></div></div>
+<div class="wrap">
+<div class="logo">MX</div>
+<h1>MXrader · 卡密激活</h1>
+<div class="card">
+  <input id="card" placeholder="粘贴卡密" autocomplete="off" spellcheck="false"
+         maxlength="32" autocapitalize="characters">
+  <button id="go">激活</button>
+  <div class="msg" id="msg"></div>
+</div>
+<small>卡密不区分大小写，可直接粘贴（支持 16~32 位）<br>激活成功后自动进入雷达界面</small>
+</div><script>
+document.documentElement.dataset.battleReady='1';
+const $=id=>document.getElementById(id);
+function clean(v){return (v||'').replace(/[\u200b\u200c\u200d\ufeff\s]/g,'').toUpperCase()}
+$('card').addEventListener('input',e=>{e.target.value=clean(e.target.value)});
+async function go(){
+  const card=clean($('card').value);
+  if(!card){$('msg').className='msg';$('msg').textContent='请输入卡密';return}
+  $('go').disabled=true;$('go').textContent='验证中…';$('msg').textContent='';
+  try{
+    const r=await fetch('/license',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({card})});
+    const j=await r.json();
+    if(j.ok){
+      $('msg').className='msg ok';
+      $('msg').textContent='激活成功'+(j.expiry?('（到期 '+j.expiry+'）'):'')+'，正在启动雷达…';
+      setTimeout(()=>location.href='/',1800);
+    }else{
+      $('msg').className='msg';$('msg').textContent=j.error||'验证失败';
+      $('go').disabled=false;$('go').textContent='激活';
+    
