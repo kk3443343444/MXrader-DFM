@@ -165,6 +165,11 @@ impl UdpAssociation {
         false
     }
 
+    /// 已学习到的客户端真实来源（还没学到就是 `None`）。
+    pub fn learned_endpoint(&self) -> Option<SocketAddr> {
+        *self.learned_client.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Bumps the activity stamp seen by the reaper.
     pub fn touch(&self, now: u64) {
         self.last_activity_ms.store(now, Ordering::Relaxed);
@@ -503,6 +508,61 @@ pub async fn relay_udp(
     relay_udp_with(state, engine, table, assoc, owner, until).await
 }
 
+/// 判定一个来源是"客户端数据报"还是"上游响应"。
+///
+/// 为什么必须有它：`per_association_ephemeral` 下客户端按 BND.ADDR:BND.PORT 把数据报发到
+/// 本关联的临时端口，而转发也是从**同一个** socket 出去的，于是上游响应回到同一个 socket ——
+/// 两个方向只能在一个读分支里按来源分流。分错的后果就是真机上那种"UDP 只出不进"：
+/// 客户端数据报被当成上游响应打回控制连接的端口，真正的响应又被当成客户端数据报丢掉。
+///
+/// 规则：学习到真实来源之后就只认它的**精确地址**（同一个 IP 上的上游服务器不能被当成
+/// 客户端）；还没学过时，客户端在 ASSOCIATE 请求里填了 0.0.0.0:0（RFC 1928 允许）就接受
+/// 第一个来源，否则要求同地址或至少同 IP。
+fn is_client_source(assoc: &UdpAssociation, from: SocketAddr) -> bool {
+    match assoc.learned_endpoint() {
+        Some(learned) => from == learned,
+        None => {
+            let declared = assoc.client_endpoint;
+            declared.ip().is_unspecified() || from == declared || from.ip() == declared.ip()
+        }
+    }
+}
+
+/// 回程：给上游数据报套上 `RSV FRAG ATYP SRC PORT` 头，发往客户端**真实**的 UDP 来源。
+///
+/// 为什么用 `effective_client_endpoint` 而不是 `client_endpoint`：后者是 TCP 控制连接的对端，
+/// 客户端发 UDP 用的是另一个 socket（源端口必然不同）。发到 TCP 端口的话客户端永远收不到回包，
+/// Windows 还会把 ICMP 端口不可达回报到那个发包的 socket 上（`os error 10054`），
+/// 看起来像"读 socket 报错了"。
+async fn send_upstream_datagram_to_client(
+    state: &AppState,
+    assoc: &UdpAssociation,
+    owner: &UdpClientSocket,
+    from: SocketAddr,
+    datagram: &[u8],
+) {
+    let client = assoc.effective_client_endpoint();
+    let framed = encode_udp_response(from, datagram);
+    assoc.touch(now_ms());
+    match owner.send_to(&framed, client).await {
+        Ok(written) => {
+            assoc.add_bytes_down(datagram.len());
+            state.note_udp_down(datagram.len()).await;
+            state.note_udp_relay(written).await;
+            trace!(
+                "] UDP response send_to {} (assoc {}, {} bytes)",
+                client,
+                assoc.id,
+                datagram.len()
+            );
+        }
+        Err(err) => {
+            debug!("UDP response send_to {} failed: {}", client, err);
+            state.note_tcp_relay_failure().await;
+        }
+    }
+}
+
 /// Per-association UDP relay loop.
 ///
 /// * client -> destination: strip the SOCKS5 UDP header, tap the datagram, forward it.
@@ -536,12 +596,27 @@ pub async fn relay_udp_with(
             break;
         }
 
-        // Only the per-association socket is read here; shared-socket reads belong to the demux.
+        // 客户端面与目标面在 `per_association_ephemeral` 下是**同一个**临时 socket
+        // （客户端按 BND.ADDR:BND.PORT 发到它，转发也从它出去），所以这个 socket 只允许
+        // 一个分支读：两个方向在分支内部按来源分流（见 `is_client_source`）。
+        // 两条分支同时读同一个 socket 会互相抢包 —— 谁先 poll 到就归谁，于是客户端数据报
+        // 被当成上游响应打回控制连接的端口，回程自然永远到不了客户端。
+        // `shared_port` 下客户端面是 SOCKS 端口那个 socket、它的读取归 demux loop
+        // （见 socks5::mod），这里只读目标面。
+        let shared_client_face = owner.is_shared();
+
         let client_read = async {
-            if owner.is_shared() {
+            if shared_client_face {
                 std::future::pending::<std::io::Result<(usize, SocketAddr)>>().await
             } else {
                 owner.recv_from(&mut client_buf).await
+            }
+        };
+        let upstream_read = async {
+            if shared_client_face {
+                assoc.socket.recv_from(&mut upstream_buf).await
+            } else {
+                std::future::pending::<std::io::Result<(usize, SocketAddr)>>().await
             }
         };
 
@@ -556,24 +631,30 @@ pub async fn relay_udp_with(
                             state.note_invalid_packet().await;
                             continue;
                         }
-                        let effective = assoc.effective_client_endpoint();
-                        if from != effective {
+                        if !is_client_source(&assoc, from) {
+                            // 同一个 socket 上回来的上游响应：直接走回程，别去解析 SOCKS5 头。
+                            send_upstream_datagram_to_client(
+                                &state,
+                                &assoc,
+                                &owner,
+                                from,
+                                &client_buf[..len],
+                            )
+                            .await;
+                            continue;
+                        }
+                        if from != assoc.effective_client_endpoint()
+                            && assoc.learn_client_endpoint(from)
+                        {
                             // 客户端发 UDP 用的 socket 与 TCP 控制连接不是同一个（源端口不同），
-                            // RFC 1928 也允许它在请求里填 0.0.0.0:0。所以：同 IP、或客户端地址
-                            // 未指定时，接受并**学习**真实来源；只有明显是别人的包才丢。
-                            let same_ip = from.ip() == effective.ip();
-                            if !(same_ip || effective.ip().is_unspecified()) {
-                                trace!("UDP relay assoc {} ignoring datagram from {}", assoc.id, from);
-                                continue;
-                            }
-                            if assoc.learn_client_endpoint(from) {
-                                info!(
-                                    assoc = assoc.id,
-                                    learned = %from,
-                                    declared = %assoc.client_endpoint,
-                                    "UDP relay learned the client endpoint (回程将发往此处)"
-                                );
-                            }
+                            // RFC 1928 也允许它在请求里填 0.0.0.0:0。所以第一个数据报的来源就是
+                            // "回程该发到哪里"的真相，学下来。
+                            info!(
+                                assoc = assoc.id,
+                                learned = %from,
+                                declared = %assoc.client_endpoint,
+                                "UDP relay learned the client endpoint (回程将发往此处)"
+                            );
                         }
                         let dest = match parse_udp_request(&client_buf[..len]) {
                             Ok(request) => request,
@@ -596,10 +677,15 @@ pub async fn relay_udp_with(
                         let datagram = Bytes::copy_from_slice(&client_buf[..len]);
                         engine.feed_dir(assoc.id, from, target, &datagram, now_ms(), true);
 
-                        let payload = &client_buf[dest.header_len()..];
+                        // 必须切到 `len`：直接用 `[header_len..]` 会把整个 64KB 接收缓冲
+                        // （含上一包的残渣）都发出去，Windows 直接回 WSAEMSGSIZE(10040)
+                        // "消息大于内部消息缓冲区"，转发永远出不去 —— 真机症状同样是
+                        // "客户端一个包都到不了服务器"。
+                        let payload = &client_buf[dest.header_len()..len];
                         match assoc.socket.send_to(payload, target).await {
                             Ok(written) => {
                                 assoc.add_bytes_up(written);
+                                state.note_udp_up(len).await;
                                 state.note_udp_relay(written).await;
                             }
                             Err(err) => {
@@ -609,12 +695,19 @@ pub async fn relay_udp_with(
                         }
                     }
                     Err(err) => {
+                        // 这条 socket 同时是转发出去的 socket，所以"上一次发包"引发的 ICMP
+                        // 回报（Windows os error 10054）也会落在它上面。当成致命错误会让这条
+                        // 关联直接停止转发，客户端之后所有数据报都不会再被读取。
+                        if is_benign_udp_error(&err) {
+                            trace!("UDP relay assoc {} client recv ignored benign error: {}", assoc.id, err);
+                            continue;
+                        }
                         debug!("UDP relay assoc {} client read failed: {}", assoc.id, err);
                         break;
                     }
                 }
             }
-            read = assoc.socket.recv_from(&mut upstream_buf) => {
+            read = upstream_read => {
                 match read {
                     Ok((len, from)) => {
                         if len == 0 {
@@ -627,25 +720,14 @@ pub async fn relay_udp_with(
                             trace!("UDP relay assoc {} saw client-origin datagram", assoc.id);
                             continue;
                         }
-                        let framed = encode_udp_response(from, &upstream_buf[..len]);
-                        assoc.touch(now_ms());
-                        match owner.send_to(&framed, client).await {
-                            Ok(written) => {
-                                assoc.add_bytes_down(len);
-                                state.note_udp_down(len).await;
-                                state.note_udp_relay(written).await;
-                                trace!(
-                                    "] UDP response send_to {} (assoc {}, {} bytes)",
-                                    client,
-                                    assoc.id,
-                                    len
-                                );
-                            }
-                            Err(err) => {
-                                debug!("UDP response send_to {} failed: {}", client, err);
-                                state.note_tcp_relay_failure().await;
-                            }
-                        }
+                        send_upstream_datagram_to_client(
+                            &state,
+                            &assoc,
+                            &owner,
+                            from,
+                            &upstream_buf[..len],
+                        )
+                        .await;
                     }
                     Err(err) => {
                         // UDP 上的"连接被重置/拒绝"几乎都是**上一次发包**引发的 ICMP 端口
@@ -742,6 +824,25 @@ pub async fn idle_reaper_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Config;
+    use crate::socks5::handshake::{SocksTarget, ATYP_IPV4};
+    use tokio::net::TcpListener;
+
+    /// 这个用例会真跑解析引擎（内部有 worker）并用到进程级计数器，和别的重测试并行容易
+    /// 互相干扰；`ios_bridge` 里的 `SINGLETON_LOCK` 是同样的做法。
+    static SERIAL_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn serial_lock() -> std::sync::MutexGuard<'static, ()> {
+        SERIAL_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// 带超时的 `recv_from`：用例卡住时立刻失败，而不是把 cargo test 挂死。
+    async fn recv_within(sock: &UdpSocket, buf: &mut [u8]) -> (usize, SocketAddr) {
+        tokio::time::timeout(Duration::from_secs(3), sock.recv_from(buf))
+            .await
+            .expect("3 秒内没收到数据报")
+            .expect("recv_from 失败")
+    }
 
     fn assoc(id: u64, endpoint: &str, bound: &str, created: u64) -> UdpAssociation {
         let socket = std::net::UdpSocket::bind("127.0.0.1:0").expect("bind udp");
@@ -801,5 +902,117 @@ mod tests {
     fn idle_timeout_matches_the_documented_300s() {
         assert_eq!(UDP_ASSOC_IDLE_TIMEOUT_MS, 300_000);
         assert_eq!(UDP_REAPER_INTERVAL_MS, 15_000);
+    }
+
+    /// 端到端回归：客户端用**与 TCP 控制连接不同的源端口**发 UDP，回程必须发到那个 UDP 来源。
+    ///
+    /// 真机症状：B 机的游戏"代理连上了但一直网络异常"，客户端一个回程报文都收不到。
+    /// `per_association_ephemeral` 下客户端按 BND.ADDR:BND.PORT 把数据报发到本关联的临时
+    /// 端口，而上游响应也回到同一个 socket，于是三件事都必须成立：
+    ///   1) 这个 socket 只能有一个读分支，两个方向在分支里按来源分流（两个分支抢同一个
+    ///      socket 会把客户端数据报当成上游响应，直接打回控制连接的端口）；
+    ///   2) 回程目标必须是数据报的**真实来源**，不能是 TCP 对端（源端口不同）；
+    ///   3) 转发的 payload 必须按实际长度截断（整个 64KB 缓冲发出去 = Windows WSAEMSGSIZE）。
+    /// 任何一条破掉，这个用例都会红。
+    #[tokio::test]
+    async fn udp_relay_replies_to_the_learned_client_endpoint() {
+        let _guard = serial_lock();
+
+        // "游戏服务器"：收到什么就回 `ECHO:` 什么。
+        let upstream = UdpSocket::bind("127.0.0.1:0").await.expect("bind upstream");
+        let upstream_addr = upstream.local_addr().expect("upstream addr");
+
+        // 客户端面 socket —— 就是 BND.ADDR:BND.PORT 广告出去、客户端真正发到的那个。
+        let client_face = UdpSocket::bind("127.0.0.1:0").await.expect("bind client face");
+        let bnd = client_face.local_addr().expect("bnd");
+
+        // 关联里声明的客户端地址是 TCP 控制连接的对端：与客户端的 UDP 来源端口不同。
+        let control = TcpListener::bind("127.0.0.1:0").await.expect("bind control");
+        let declared = control.local_addr().expect("control addr");
+
+        let assoc = Arc::new(new_udp_association(
+            7,
+            declared,
+            Arc::new(client_face),
+            bnd,
+            now_ms(),
+        ));
+        let cfg = Config {
+            // 这台开发机禁止子进程往 %TEMP% 写东西，所以数据目录必须落在工作区内。
+            data_directory: crate::testutil::scratch_dir("udp-reply"),
+            ..Default::default()
+        };
+        let state = AppState::new(&cfg, "tok".into());
+        let engine = BattleEngine::new(state.clone(), cfg.clone());
+        let table = Arc::new(UdpAssociationTable::new());
+
+        // 与生产接线一致：`per_association_ephemeral` 下客户端面 = 本关联的临时 socket。
+        let relay = tokio::spawn(relay_udp_with(
+            state.clone(),
+            engine,
+            table,
+            assoc.clone(),
+            UdpClientSocket::Ephemeral(assoc.socket.clone()),
+            assoc.clone_cancel_token(),
+        ));
+
+        let client = UdpSocket::bind("127.0.0.1:0").await.expect("bind client");
+        let client_addr = client.local_addr().expect("client addr");
+        assert_ne!(client_addr, declared, "用例前提：UDP 源端口与 TCP 对端不同");
+
+        // 客户端 -> BND：标准 SOCKS5 UDP 报文（RSV/FRAG/ATYP/DST/PORT + payload）。
+        let mut request = vec![0x00, 0x00, 0x00];
+        request.extend_from_slice(&SocksTarget::Ip(upstream_addr).encode_addr_port());
+        request.extend_from_slice(b"hello-radar");
+        client.send_to(&request, bnd).await.expect("client -> bnd");
+
+        // 上游必须收到**只有 payload** 的那 11 个字节（顺带钉住"按长度截断"那条）。
+        let mut buf = [0u8; 512];
+        let (n, reply_to) = recv_within(&upstream, &mut buf).await;
+        assert_eq!(&buf[..n], b"hello-radar", "转发出去的必须正好是 payload");
+        upstream
+            .send_to(b"ECHO:hello-radar", reply_to)
+            .await
+            .expect("upstream reply");
+
+        // 回程必须落到客户端的 UDP 源端口，并且是套了 SOCKS5 头的上游响应。
+        let (n, _) = recv_within(&client, &mut buf).await;
+        assert_eq!(
+            &buf[..n],
+            &encode_udp_response(upstream_addr, b"ECHO:hello-radar")[..],
+            "回程报文必须带 SOCKS5 头，来源地址是上游"
+        );
+        assert_eq!(buf[3], ATYP_IPV4);
+        assert_eq!(
+            assoc.effective_client_endpoint(),
+            client_addr,
+            "回程目标 = 客户端真实 UDP 来源，而不是 TCP 对端"
+        );
+        assert_eq!(assoc.counters(), (11, 16), "上行 11 字节、下行 16 字节");
+
+        assoc.cancel();
+        let _ = tokio::time::timeout(Duration::from_secs(2), relay).await;
+    }
+
+    /// 分流规则：学过真实来源之后就只认精确地址。
+    ///
+    /// 为什么必须这么严：上游服务器常常与客户端同 IP（局域网里更是必然），放宽成"同 IP 就算
+    /// 客户端"会让上游回包被当成客户端数据报，回程永远发不出去。
+    #[tokio::test]
+    async fn learned_client_endpoint_is_matched_exactly() {
+        let a = assoc(9, "127.0.0.1:40000", "0.0.0.0:2025", 0);
+
+        // 还没学习：同 IP 的另一个端口也当作客户端（RFC 1928 允许客户端在请求里填 0.0.0.0:0）
+        assert!(is_client_source(&a, "127.0.0.1:40111".parse().unwrap()));
+        assert!(!is_client_source(&a, "10.0.0.1:40111".parse().unwrap()));
+
+        // 学习之后：只认这个地址
+        assert!(a.learn_client_endpoint("127.0.0.1:40111".parse().unwrap()));
+        assert!(is_client_source(&a, "127.0.0.1:40111".parse().unwrap()));
+        assert!(!is_client_source(&a, "127.0.0.1:40112".parse().unwrap()));
+        assert_eq!(
+            a.learned_endpoint(),
+            Some("127.0.0.1:40111".parse().unwrap())
+        );
     }
 }

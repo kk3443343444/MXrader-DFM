@@ -532,6 +532,18 @@ async fn udp_demux_loop(
 
                 assoc.touch(now_ms());
 
+                // 客户端发 UDP 用的 socket 与 TCP 控制连接不是同一个（源端口必然不同），
+                // 所以"数据报的真实来源"才是回程该发去的地方。学一次，relay loop 的回程
+                // 才不会发到 TCP 对端的端口上（那种包客户端永远收不到，Windows 还会把
+                // ICMP 端口不可达回报到这个 socket 上，日志里只看到 os error 10054）。
+                if assoc.learn_client_endpoint(from) {
+                    info!(
+                        assoc = assoc.id,
+                        learned = %from,
+                        "UDP demux learned the client endpoint (回程将发往此处)"
+                    );
+                }
+
                 let target_addr = match dest.to_socket_addr().await {
                     Ok(addr) => addr,
                     Err(err) => {

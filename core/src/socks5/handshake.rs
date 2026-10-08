@@ -1065,13 +1065,22 @@ async fn handle_udp_associate(
 
     send_reply(client, REP_SUCCEEDED, client_facing).await?;
 
+    // 回程 socket 必须与刚发出去的 BND 一致：客户端只会往 BND.ADDR:BND.PORT 发数据报，
+    // 而且不少客户端会把 UDP socket connect 到那个地址 —— 回程从别的 socket 出去它就收不到
+    // （真机症状：UDP 只出不进）。`per_association_ephemeral` 下这一面就是本关联的临时
+    // socket，也正是 relay loop 用来读取客户端数据报的那个 socket。
+    let client_face = if ctx.flags.udp_same_port || !ctx.flags.per_association_ephemeral {
+        relay::UdpClientSocket::Shared(ctx.shared_udp.clone())
+    } else {
+        relay::UdpClientSocket::Ephemeral(assoc.socket.clone())
+    };
+
     // The association lives exactly as long as the control connection (or until reaped).
     let relay_state = ctx.state.clone();
     let relay_engine = ctx.engine.clone();
     let relay_table = ctx.assoc.clone();
     // The relay task owns one handle to the table; the cleanup below still needs ours.
     let relay_table_task = relay_table.clone();
-    let shared = ctx.shared_udp.clone();
     let relay_assoc = Arc::new(assoc.clone());
     let relay_cancel = cancel.child_token();
     let relay_until = relay_assoc.clone_cancel_token();
@@ -1081,7 +1090,7 @@ async fn handle_udp_associate(
             relay_engine,
             relay_table_task.clone(),
             relay_assoc,
-            relay::UdpClientSocket::Shared(shared),
+            client_face,
             relay_until,
         )
         .await;
