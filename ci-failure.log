@@ -1,0 +1,434 @@
+# CI failure @ 2026-10-08T11:48:55Z
+run: https://github.com/kk3443343444/MXrader-DFM/actions/runs/37772311819
+
+## rust-build.log (tail 400 lines)
+```
+==> 安装 iOS target：aarch64-apple-ios
+info: component rust-std for target aarch64-apple-ios is up to date
+==> cargo build --lib --target aarch64-apple-ios (release)
+[1m[92m    Updating[0m crates.io index
+[1m[92m Downloading[0m crates ...
+[1m[92m  Downloaded[0m atomic-waker v1.1.2
+[1m[92m  Downloaded[0m block-buffer v0.10.4
+[1m[92m  Downloaded[0m cpufeatures v0.2.17
+[1m[92m  Downloaded[0m crypto-common v0.1.7
+[1m[92m  Downloaded[0m errno v0.3.14
+[1m[92m  Downloaded[0m cfg-if v1.0.5
+[1m[92m  Downloaded[0m version_check v0.9.5
+[1m[92m  Downloaded[0m autocfg v1.5.1
+[1m[92m  Downloaded[0m cipher v0.4.4
+[1m[92m  Downloaded[0m futures-sink v0.3.34
+[1m[92m  Downloaded[0m httpdate v1.0.3
+[1m[92m  Downloaded[0m inout v0.1.4
+[1m[92m  Downloaded[0m serde_urlencoded v0.7.1
+[1m[92m  Downloaded[0m subtle v2.6.1
+[1m[92m  Downloaded[0m sync_wrapper v1.0.2
+[1m[92m  Downloaded[0m tokio-macros v2.7.2
+[1m[92m  Downloaded[0m unicase v2.10.0
+[1m[92m  Downloaded[0m data-encoding v2.11.1
+[1m[92m  Downloaded[0m form_urlencoded v1.2.2
+[1m[92m  Downloaded[0m futures-task v0.3.34
+[1m[92m  Downloaded[0m futures-macro v0.3.34
+[1m[92m  Downloaded[0m generic-array v0.14.7
+[1m[92m  Downloaded[0m hex v0.4.3
+[1m[92m  Downloaded[0m http-body v1.1.0
+[1m[92m  Downloaded[0m http-range-header v0.4.2
+[1m[92m  Downloaded[0m percent-encoding v2.3.2
+[1m[92m  Downloaded[0m sha1 v0.10.7
+[1m[92m  Downloaded[0m thread_local v1.1.10
+[1m[92m  Downloaded[0m axum-core v0.5.6
+[1m[92m  Downloaded[0m dashmap v6.2.1
+[1m[92m  Downloaded[0m digest v0.10.7
+[1m[92m  Downloaded[0m itoa v1.0.18
+[1m[92m  Downloaded[0m lazy_static v1.5.1
+[1m[92m  Downloaded[0m matchers v0.2.0
+[1m[92m  Downloaded[0m quote v1.0.47
+[1m[92m  Downloaded[0m scopeguard v1.2.0
+[1m[92m  Downloaded[0m serde_path_to_error v0.1.20
+[1m[92m  Downloaded[0m sha2 v0.10.9
+[1m[92m  Downloaded[0m signal-hook-registry v1.4.8
+[1m[92m  Downloaded[0m slab v0.4.12
+[1m[92m  Downloaded[0m thiserror-impl v2.0.21
+[1m[92m  Downloaded[0m tower-layer v0.3.3
+[1m[92m  Downloaded[0m tower-service v0.3.3
+[1m[92m  Downloaded[0m crossbeam-utils v0.8.23
+[1m[92m  Downloaded[0m futures-core v0.3.34
+[1m[92m  Downloaded[0m http-body-util v0.1.5
+[1m[92m  Downloaded[0m lock_api v0.4.14
+[1m[92m  Downloaded[0m mime v0.3.17
+[1m[92m  Downloaded[0m ppv-lite86 v0.2.21
+[1m[92m  Downloaded[0m rand_chacha v0.9.0
+[1m[92m  Downloaded[0m rustversion v1.0.23
+[1m[92m  Downloaded[0m thiserror v2.0.21
+[1m[92m  Downloaded[0m hmac v0.12.1
+[1m[92m  Downloaded[0m lz4_flex v0.11.6
+[1m[92m  Downloaded[0m matchit v0.8.4
+[1m[92m  Downloaded[0m nu-ansi-term v0.50.3
+[1m[92m  Downloaded[0m parking_lot_core v0.9.12
+[1m[92m  Downloaded[0m pin-project-lite v0.2.17
+[1m[92m  Downloaded[0m smallvec v1.16.2
+[1m[92m  Downloaded[0m tokio-tungstenite v0.29.0
+[1m[92m  Downloaded[0m zmij v1.0.23
+[1m[92m  Downloaded[0m anyhow v1.0.104
+[1m[92m  Downloaded[0m bitflags v2.13.2
+[1m[92m  Downloaded[0m bytes v1.12.1
+[1m[92m  Downloaded[0m core-foundation-sys v0.8.7
+[1m[92m  Downloaded[0m getrandom v0.3.4
+[1m[92m  Downloaded[0m getrandom v0.4.3
+[1m[92m  Downloaded[0m httparse v1.10.1
+[1m[92m  Downloaded[0m iana-time-zone v0.1.65
+[1m[92m  Downloaded[0m log v0.4.34
+[1m[92m  Downloaded[0m mime_guess v2.0.5
+[1m[92m  Downloaded[0m once_cell v1.21.4
+[1m[92m  Downloaded[0m parking_lot v0.12.5
+[1m[92m  Downloaded[0m proc-macro2 v1.0.107
+[1m[92m  Downloaded[0m rand_core v0.9.5
+[1m[92m  Downloaded[0m ryu v1.0.23
+[1m[92m  Downloaded[0m serde_derive v1.0.229
+[1m[92m  Downloaded[0m sharded-slab v0.1.7
+[1m[92m  Downloaded[0m tracing-log v0.2.0
+[1m[92m  Downloaded[0m twox-hash v2.1.5
+[1m[92m  Downloaded[0m unicode-ident v1.0.26
+[1m[92m  Downloaded[0m tracing-attributes v0.1.31
+[1m[92m  Downloaded[0m arc-swap v1.9.2
+[1m[92m  Downloaded[0m num-traits v0.2.19
+[1m[92m  Downloaded[0m serde v1.0.229
+[1m[92m  Downloaded[0m serde_core v1.0.229
+[1m[92m  Downloaded[0m socket2 v0.6.5
+[1m[92m  Downloaded[0m rand v0.9.5
+[1m[92m  Downloaded[0m tracing-core v0.1.36
+[1m[92m  Downloaded[0m uuid v1.27.0
+[1m[92m  Downloaded[0m base64 v0.22.1
+[1m[92m  Downloaded[0m http v1.5.0
+[1m[92m  Downloaded[0m memchr v2.8.3
+[1m[92m  Downloaded[0m mio v1.2.4
+[1m[92m  Downloaded[0m tower v0.5.3
+[1m[92m  Downloaded[0m tungstenite v0.29.0
+[1m[92m  Downloaded[0m typenum v1.20.1
+[1m[92m  Downloaded[0m aes v0.8.4
+[1m[92m  Downloaded[0m hyper-util v0.1.21
+[1m[92m  Downloaded[0m axum v0.8.9
+[1m[92m  Downloaded[0m hashbrown v0.14.5
+[1m[92m  Downloaded[0m serde_json v1.0.151
+[1m[92m  Downloaded[0m futures-util v0.3.34
+[1m[92m  Downloaded[0m tokio-util v0.7.19
+[1m[92m  Downloaded[0m aho-corasick v1.1.5
+[1m[92m  Downloaded[0m tower-http v0.6.11
+[1m[92m  Downloaded[0m hyper v1.12.0
+[1m[92m  Downloaded[0m tracing-subscriber v0.3.23
+[1m[92m  Downloaded[0m chrono v0.4.45
+[1m[92m  Downloaded[0m syn v3.0.6
+[1m[92m  Downloaded[0m syn v2.0.119
+[1m[92m  Downloaded[0m zerocopy v0.8.62
+[1m[92m  Downloaded[0m regex-syntax v0.8.11
+[1m[92m  Downloaded[0m tracing v0.1.44
+[1m[92m  Downloaded[0m regex-automata v0.4.18
+[1m[92m  Downloaded[0m tokio v1.53.2
+[1m[92m  Downloaded[0m libc v0.2.190
+[1m[92m   Compiling[0m libc v0.2.190
+[1m[92m   Compiling[0m proc-macro2 v1.0.107
+[1m[92m   Compiling[0m quote v1.0.47
+[1m[92m   Compiling[0m unicode-ident v1.0.26
+[1m[92m   Compiling[0m cfg-if v1.0.5
+[1m[92m   Compiling[0m version_check v0.9.5
+[1m[92m   Compiling[0m generic-array v0.14.7
+[1m[92m   Compiling[0m syn v3.0.6
+[1m[92m   Compiling[0m bytes v1.12.1
+[1m[92m   Compiling[0m pin-project-lite v0.2.17
+[1m[92m   Compiling[0m itoa v1.0.18
+[1m[92m   Compiling[0m typenum v1.20.1
+[1m[92m   Compiling[0m futures-core v0.3.34
+[1m[92m   Compiling[0m http v1.5.0
+[1m[92m   Compiling[0m crypto-common v0.1.7
+[1m[92m   Compiling[0m errno v0.3.14
+[1m[92m   Compiling[0m once_cell v1.21.4
+[1m[92m   Compiling[0m serde_core v1.0.229
+[1m[92m   Compiling[0m log v0.4.34
+[1m[92m   Compiling[0m signal-hook-registry v1.4.8
+[1m[92m   Compiling[0m mio v1.2.4
+[1m[92m   Compiling[0m socket2 v0.6.5
+[1m[92m   Compiling[0m tokio-macros v2.7.2
+[1m[92m   Compiling[0m getrandom v0.3.4
+[1m[92m   Compiling[0m zerocopy v0.8.62
+[1m[92m   Compiling[0m tokio v1.53.2
+[1m[92m   Compiling[0m tracing-core v0.1.36
+[1m[92m   Compiling[0m block-buffer v0.10.4
+[1m[92m   Compiling[0m syn v2.0.119
+[1m[92m   Compiling[0m subtle v2.6.1
+[1m[92m   Compiling[0m smallvec v1.16.2
+[1m[92m   Compiling[0m httparse v1.10.1
+[1m[92m   Compiling[0m digest v0.10.7
+[1m[92m   Compiling[0m tracing-attributes v0.1.31
+[1m[92m   Compiling[0m futures-macro v0.3.34
+[1m[92m   Compiling[0m http-body v1.1.0
+[1m[92m   Compiling[0m cpufeatures v0.2.17
+[1m[92m   Compiling[0m slab v0.4.12
+[1m[92m   Compiling[0m futures-sink v0.3.34
+[1m[92m   Compiling[0m futures-task v0.3.34
+[1m[92m   Compiling[0m futures-util v0.3.34
+[1m[92m   Compiling[0m ppv-lite86 v0.2.21
+[1m[92m   Compiling[0m rand_core v0.9.5
+[1m[92m   Compiling[0m tracing v0.1.44
+[1m[92m   Compiling[0m tower-service v0.3.3
+[1m[92m   Compiling[0m serde v1.0.229
+[1m[92m   Compiling[0m thiserror v2.0.21
+[1m[92m   Compiling[0m rand_chacha v0.9.0
+[1m[92m   Compiling[0m serde_derive v1.0.229
+[1m[92m   Compiling[0m thiserror-impl v2.0.21
+[1m[92m   Compiling[0m mime v0.3.17
+[1m[92m   Compiling[0m unicase v2.10.0
+[1m[92m   Compiling[0m httpdate v1.0.3
+[1m[92m   Compiling[0m zmij v1.0.23
+[1m[92m   Compiling[0m tower-layer v0.3.3
+[1m[92m   Compiling[0m autocfg v1.5.1
+[1m[92m   Compiling[0m parking_lot_core v0.9.12
+[1m[92m   Compiling[0m percent-encoding v2.3.2
+[1m[92m   Compiling[0m num-traits v0.2.19
+[1m[92m   Compiling[0m mime_guess v2.0.5
+[1m[92m   Compiling[0m rand v0.9.5
+[1m[92m   Compiling[0m sha1 v0.10.7
+[1m[92m   Compiling[0m http-body-util v0.1.5
+[1m[92m   Compiling[0m rustversion v1.0.23
+[1m[92m   Compiling[0m sync_wrapper v1.0.2
+[1m[92m   Compiling[0m regex-syntax v0.8.11
+[1m[92m   Compiling[0m atomic-waker v1.1.2
+[1m[92m   Compiling[0m serde_json v1.0.151
+[1m[92m   Compiling[0m scopeguard v1.2.0
+[1m[92m   Compiling[0m crossbeam-utils v0.8.23
+[1m[92m   Compiling[0m getrandom v0.4.3
+[1m[92m   Compiling[0m data-encoding v2.11.1
+[1m[92m   Compiling[0m lock_api v0.4.14
+[1m[92m   Compiling[0m tungstenite v0.29.0
+[1m[92m   Compiling[0m regex-automata v0.4.18
+[1m[92m   Compiling[0m hyper v1.12.0
+[1m[92m   Compiling[0m form_urlencoded v1.2.2
+[1m[92m   Compiling[0m inout v0.1.4
+[1m[92m   Compiling[0m lazy_static v1.5.1
+[1m[92m   Compiling[0m ryu v1.0.23
+[1m[92m   Compiling[0m core-foundation-sys v0.8.7
+[1m[92m   Compiling[0m anyhow v1.0.104
+[1m[92m   Compiling[0m memchr v2.8.3
+[1m[92m   Compiling[0m iana-time-zone v0.1.65
+[1m[92m   Compiling[0m serde_urlencoded v0.7.1
+[1m[92m   Compiling[0m sharded-slab v0.1.7
+[1m[92m   Compiling[0m cipher v0.4.4
+[1m[92m   Compiling[0m matchers v0.2.0
+[1m[92m   Compiling[0m hyper-util v0.1.21
+[1m[92m   Compiling[0m tokio-tungstenite v0.29.0
+[1m[92m   Compiling[0m tower v0.5.3
+[1m[92m   Compiling[0m axum-core v0.5.6
+[1m[92m   Compiling[0m tokio-util v0.7.19
+[1m[92m   Compiling[0m serde_path_to_error v0.1.20
+[1m[92m   Compiling[0m tracing-log v0.2.0
+[1m[92m   Compiling[0m thread_local v1.1.10
+[1m[92m   Compiling[0m hashbrown v0.14.5
+[1m[92m   Compiling[0m bitflags v2.13.2
+[1m[92m   Compiling[0m base64 v0.22.1
+[1m[92m   Compiling[0m matchit v0.8.4
+[1m[92m   Compiling[0m nu-ansi-term v0.50.3
+[1m[92m   Compiling[0m twox-hash v2.1.5
+[1m[92m   Compiling[0m http-range-header v0.4.2
+[1m[92m   Compiling[0m tower-http v0.6.11
+[1m[92m   Compiling[0m tracing-subscriber v0.3.23
+[1m[92m   Compiling[0m lz4_flex v0.11.6
+[1m[92m   Compiling[0m axum v0.8.9
+[1m[92m   Compiling[0m dashmap v6.2.1
+[1m[92m   Compiling[0m uuid v1.27.0
+[1m[92m   Compiling[0m arc-swap v1.9.2
+[1m[92m   Compiling[0m chrono v0.4.45
+[1m[92m   Compiling[0m aes v0.8.4
+[1m[92m   Compiling[0m parking_lot v0.12.5
+[1m[92m   Compiling[0m sha2 v0.10.9
+[1m[92m   Compiling[0m hmac v0.12.1
+[1m[92m   Compiling[0m hex v0.4.3
+[1m[92m   Compiling[0m battle_proxy v2.3.7 (/Users/runner/work/MXrader-DFM/MXrader-DFM/core)
+[1m[33mwarning[0m[1m: unused import: `WeaponRegistry`[0m
+  [1m[94m--> [0msrc/battle/session.rs:18:37
+   [1m[94m|[0m
+[1m[94m18[0m [1m[94m|[0m use super::combat::{CombatAnalyzer, WeaponRegistry};
+   [1m[94m|[0m                                     [1m[33m^^^^^^^^^^^^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: unused import: `AtomicBool`[0m
+  [1m[94m--> [0msrc/socks5/handshake.rs:47:25
+   [1m[94m|[0m
+[1m[94m47[0m [1m[94m|[0m use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+   [1m[94m|[0m                         [1m[33m^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `info`[0m
+  [1m[94m--> [0msrc/socks5/handshake.rs:55:22
+   [1m[94m|[0m
+[1m[94m55[0m [1m[94m|[0m use tracing::{debug, info, trace, warn};
+   [1m[94m|[0m                      [1m[33m^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `crate::battle::BattleEngine`[0m
+  [1m[94m--> [0msrc/socks5/handshake.rs:57:5
+   [1m[94m|[0m
+[1m[94m57[0m [1m[94m|[0m use crate::battle::BattleEngine;
+   [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused import: `crate::state::AppState`[0m
+  [1m[94m--> [0msrc/socks5/handshake.rs:58:5
+   [1m[94m|[0m
+[1m[94m58[0m [1m[94m|[0m use crate::state::AppState;
+   [1m[94m|[0m     [1m[33m^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: ambiguous glob re-exports[0m
+  [1m[94m--> [0msrc/socks5/mod.rs:69:9
+   [1m[94m|[0m
+[1m[94m69[0m [1m[94m|[0m pub use handshake::*;
+   [1m[94m|[0m         [1m[33m^^^^^^^^^^^^[0m [1m[33mthe name `udp_outbound_sockets` in the value namespace is first re-exported here[0m
+[1m[94m70[0m [1m[94m|[0m pub use relay::*;
+   [1m[94m|[0m         [1m[94m--------[0m [1m[94mbut the name `udp_outbound_sockets` in the value namespace is also re-exported here[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(ambiguous_glob_reexports)]` on by default
+
+[1m[33mwarning[0m[1m: unused import: `hiddify_profile_json as build_hiddify_profile`[0m
+    [1m[94m--> [0msrc/web/mod.rs:1196:16
+     [1m[94m|[0m
+[1m[94m1196[0m [1m[94m|[0m pub(crate) use hiddify_profile_json as build_hiddify_profile;
+     [1m[94m|[0m                [1m[33m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+
+[1m[33mwarning[0m[1m: unused variable: `cfg`[0m
+   [1m[94m--> [0msrc/desktop_auth.rs:166:5
+    [1m[94m|[0m
+[1m[94m166[0m [1m[94m|[0m     cfg: &Config,
+    [1m[94m|[0m     [1m[33m^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_cfg`[0m
+    [1m[94m|[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: unused variable: `shutdown_rx`[0m
+   [1m[94m--> [0msrc/socks5/mod.rs:340:23
+    [1m[94m|[0m
+[1m[94m340[0m [1m[94m|[0m     let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(SHUTDOWN_BROADCAST_CAPACITY);
+    [1m[94m|[0m                       [1m[33m^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_shutdown_rx`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `relay_cancel`[0m
+    [1m[94m--> [0msrc/socks5/handshake.rs:1056:9
+     [1m[94m|[0m
+[1m[94m1056[0m [1m[94m|[0m     let relay_cancel = cancel.child_token();
+     [1m[94m|[0m         [1m[33m^^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_relay_cancel`[0m
+
+[1m[33mwarning[0m[1m: unused variable: `idle_timeout`[0m
+   [1m[94m--> [0msrc/socks5/relay.rs:472:9
+    [1m[94m|[0m
+[1m[94m472[0m [1m[94m|[0m     let idle_timeout = Duration::from_millis(UDP_ASSOC_IDLE_TIMEOUT_MS);
+    [1m[94m|[0m         [1m[33m^^^^^^^^^^^^[0m [1m[33mhelp: if this is intentional, prefix it with an underscore: `_idle_timeout`[0m
+
+[1m[33mwarning[0m[1m: type `HandlerCtx` is more private than the item `serve_client`[0m
+   [1m[94m--> [0msrc/socks5/handshake.rs:758:1
+    [1m[94m|[0m
+[1m[94m758[0m [1m[94m|[0m [1m[33m/[0m pub async fn serve_client(
+[1m[94m759[0m [1m[94m|[0m [1m[33m|[0m     ctx: HandlerCtx,
+[1m[94m760[0m [1m[94m|[0m [1m[33m|[0m     session_id: u64,
+[1m[94m761[0m [1m[94m|[0m [1m[33m|[0m     peer: SocketAddr,
+[1m[94m762[0m [1m[94m|[0m [1m[33m|[0m     mut client: TcpStream,
+[1m[94m763[0m [1m[94m|[0m [1m[33m|[0m     cancel: CancellationToken,
+[1m[94m764[0m [1m[94m|[0m [1m[33m|[0m ) {
+    [1m[94m|[0m [1m[33m|_^[0m [1m[33mfunction `serve_client` is reachable at visibility `pub`[0m
+    [1m[94m|[0m
+[1m[92mnote[0m: but type `HandlerCtx` is only usable at visibility `pub(crate)`
+   [1m[94m--> [0msrc/socks5/mod.rs:192:1
+    [1m[94m|[0m
+[1m[94m192[0m [1m[94m|[0m pub(crate) struct HandlerCtx {
+    [1m[94m|[0m [1m[92m^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+    [1m[94m= [0m[1mnote[0m: `#[warn(private_interfaces)]` on by default
+
+[1m[33mwarning[0m[1m: field `cfg` is never read[0m
+  [1m[94m--> [0msrc/ios_bridge.rs:35:5
+   [1m[94m|[0m
+[1m[94m31[0m [1m[94m|[0m struct Receiver {
+   [1m[94m|[0m        [1m[94m--------[0m [1m[94mfield in this struct[0m
+[1m[94m...[0m
+[1m[94m35[0m [1m[94m|[0m     cfg: Config,
+   [1m[94m|[0m     [1m[33m^^^[0m
+   [1m[94m|[0m
+   [1m[94m= [0m[1mnote[0m: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+[1m[33mwarning[0m[1m: variant `Replied` is never constructed[0m
+   [1m[94m--> [0msrc/socks5/handshake.rs:751:5
+    [1m[94m|[0m
+[1m[94m747[0m [1m[94m|[0m enum RequestOutcome {
+    [1m[94m|[0m      [1m[94m--------------[0m [1m[94mvariant in this enum[0m
+[1m[94m...[0m
+[1m[94m751[0m [1m[94m|[0m     Replied,
+    [1m[94m|[0m     [1m[33m^^^^^^^[0m
+
+[1m[33mwarning[0m: `battle_proxy` (lib) generated 14 warnings (run `cargo fix --lib -p battle_proxy` to apply 10 suggestions)
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 08s
+    45874840 bytes  /Users/runner/work/MXrader-DFM/MXrader-DFM/core/target/aarch64-apple-ios/release/libbattle_proxy.a
+==> 结果
+Non-fat file: /Users/runner/work/MXrader-DFM/MXrader-DFM/core/target/ios/libbattle_proxy.a is architecture: arm64
+静态库: /Users/runner/work/MXrader-DFM/MXrader-DFM/core/target/ios/libbattle_proxy.a
+头文件: /Users/runner/work/MXrader-DFM/MXrader-DFM/core/target/ios/battle_proxy.h
+
+下一步：cd ios && xcodegen generate && open BattleReceiverOpen.xcodeproj
+链接所需的系统库（project.yml 已配）：-lc++ -lresolv -framework Security -framework Network -framework WebKit
+```
+
+## xcodebuild.log (error / linker lines)
+```
+12:--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+```
+
+## package.log (tail 120 lines)
+```
+==> 拷进 Payload/
+==> 移除旧签名
+==> 前端资源：1 个 html（148K）
+==> 主二进制：4.5M
+==> 架构：arm64
+==> 打 zip
+zip I/O error: No such file or directory
+zip error: Could not create output file (dist/BattleReceiverOpen-mxrader-r39-unsigned.ipa)
+```
+
+## products on disk
+```
+total 0
+drwxr-xr-x@  5 runner  staff  160 Oct  8 11:48 .
+drwxr-xr-x@  3 runner  staff   96 Oct  8 11:48 ..
+drwxr-xr-x  23 runner  staff  736 Oct  8 11:48 BattleReceiverOpen.app
+drwxr-xr-x   3 runner  staff   96 Oct  8 11:48 BattleReceiverOpen.app.dSYM
+drwxr-xr-x   6 runner  staff  192 Oct  8 11:48 BattleReceiverOpen.swiftmodule
+--- app 内部 ---
+total 18832
+drwxr-xr-x  23 runner  staff      736 Oct  8 11:48 .
+drwxr-xr-x@  5 runner  staff      160 Oct  8 11:48 ..
+-rw-r--r--   1 runner  staff  1967864 Oct  8 11:48 battle-network-bg.png
+-rw-r--r--   1 runner  staff  2778051 Oct  8 11:48 BattleMark.png
+-rwxr-xr-x   1 runner  staff  4758376 Oct  8 11:48 BattleReceiverOpen
+-rw-r--r--   1 runner  staff     2052 Oct  8 11:48 Info.plist
+-rw-r--r--   1 runner  staff      838 Oct  8 11:48 MXIcon-20.png
+-rw-r--r--   1 runner  staff     1416 Oct  8 11:48 MXIcon-20@2x.png
+-rw-r--r--   1 runner  staff     1869 Oct  8 11:48 MXIcon-20@3x.png
+-rw-r--r--   1 runner  staff     1087 Oct  8 11:48 MXIcon-29.png
+-rw-r--r--   1 runner  staff     1827 Oct  8 11:48 MXIcon-29@2x.png
+-rw-r--r--   1 runner  staff     3441 Oct  8 11:48 MXIcon-29@3x.png
+-rw-r--r--   1 runner  staff     1416 Oct  8 11:48 MXIcon-40.png
+-rw-r--r--   1 runner  staff     3183 Oct  8 11:48 MXIcon-40@2x.png
+-rw-r--r--   1 runner  staff     4649 Oct  8 11:48 MXIcon-40@3x.png
+-rw-r--r--   1 runner  staff     4649 Oct  8 11:48 MXIcon-60@2x.png
+-rw-r--r--   1 runner  staff     6727 Oct  8 11:48 MXIcon-60@3x.png
+-rw-r--r--   1 runner  staff     2956 Oct  8 11:48 MXIcon-76.png
+-rw-r--r--   1 runner  staff     5730 Oct  8 11:48 MXIcon-76@2x.png
+-rw-r--r--   1 runner  staff     6264 Oct  8 11:48 MXIcon-83.5@2x.png
+-rw-r--r--   1 runner  staff    44362 Oct  8 11:48 MXMark.png
+-rw-r--r--   1 runner  staff        8 Oct  8 11:48 PkgInfo
+drwxr-xr-x   8 runner  staff      256 Oct  8 11:48 web
+--- app/web ---
+total 280
+drwxr-xr-x   8 runner  staff    256 Oct  8 11:48 .
+drwxr-xr-x  23 runner  staff    736 Oct  8 11:48 ..
+-rw-r--r--   1 runner  staff   6522 Oct  8 11:48 index.html
+-rw-r--r--   1 runner  staff  47121 Oct  8 11:48 leaflet-lite.js
+-rw-r--r--   1 runner  staff   2941 Oct  8 11:48 maps.json
+-rw-r--r--   1 runner  staff  60431 Oct  8 11:48 radar.js
+-rw-r--r--   1 runner  staff  17573 Oct  8 11:48 style.css
+drwxr-xr-x   3 runner  staff     96 Oct  8 11:48 tiles
+--- dist ---
+total 0
+drwxr-xr-x   2 runner  staff   64 Oct  8 11:48 .
+drwxr-xr-x  19 runner  staff  608 Oct  8 11:48 ..
+```
