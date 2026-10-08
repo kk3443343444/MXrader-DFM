@@ -491,10 +491,14 @@ mod tests {
             300,
         );
         assert!(t.get(&old).is_none(), "old placeholder uuid must be migrated");
-        let p = t.get("G0000000000000AB").unwrap();
+        // `uuid_for` = `format!("G{g:016X}")` = 'G' + 16 位十六进制（见
+        // `uuid_prefers_guid_then_uin_then_channel` 与 docs/PROTOCOL.md §1）。
+        // 本用例原来的字面量少了一位（'G' + 15 位），
+        // 与 uuid_for 的格式和那个**通过**的用例都矛盾，故按契约改为 16 位。
+        let p = t.get("G00000000000000AB").unwrap();
         assert_eq!(p.name.as_deref(), Some("老六"));
-        assert_eq!(t.local_uuid(), Some("G0000000000000AB"));
-        assert_eq!(t.controller_to_uuid.get(&11).map(String::as_str), Some("G0000000000000AB"));
+        assert_eq!(t.local_uuid(), Some("G00000000000000AB"));
+        assert_eq!(t.controller_to_uuid.get(&11).map(String::as_str), Some("G00000000000000AB"));
     }
 
     #[test]

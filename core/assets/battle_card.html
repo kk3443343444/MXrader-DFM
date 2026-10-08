@@ -43,7 +43,7 @@ async function go(){
   if(!card){$('msg').className='msg';$('msg').textContent='请输入卡密';return}
   $('go').disabled=true;$('go').textContent='验证中…';$('msg').textContent='';
   try{
-    const r=await fetch('/license',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch('/license/activate',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({card})});
     const j=await r.json();
     if(j.ok){
@@ -53,4 +53,18 @@ async function go(){
     }else{
       $('msg').className='msg';$('msg').textContent=j.error||'验证失败';
       $('go').disabled=false;$('go').textContent='激活';
-    
+    }
+  }catch(e){
+    $('msg').className='msg';$('msg').textContent='网络异常，请重试';
+    $('go').disabled=false;$('go').textContent='激活';
+  }
+}
+async function poll(){
+  try{
+    const r=await fetch('/license/status',{cache:'no-store'});
+    const j=await r.json();
+    if(j.authorized){$('msg').className='msg ok';$('msg').textContent='已激活，正在进入雷达…';location.href='/'}
+  }catch(e){}
+}
+poll();setInterval(poll,1500);
+</script></body></html>

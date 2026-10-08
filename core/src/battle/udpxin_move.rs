@@ -50,7 +50,10 @@ pub struct RepMovementProfile {
     pub name: String,
     /// PackedFlags 是否是一个完整的字节（UE5 是 1 字节，部分 fork 只用 4 位）。
     pub packed_flags_bytes: u8,
-    /// 位置每分量位宽（UE `FVector_NetQuantize100` 默认 20 位 + 1 位符号）。
+    /// 位置每分量幅值位宽（另有 1 位符号）。20 位 × 0.01 只能覆盖 ±10 485.75
+    /// 单位（≈105 m），而本工程自己的坐标用例是 ±123 456 cm（≈1.23 km，
+    /// 见 `web::battle_view::tests::positions_are_converted_from_centimetres_to_metres`），
+    /// 20 位档永远解不出真实对局的位移。取 24 位：±167 772 cm ≈ ±1.68 km。
     pub location_bits: u32,
     /// `FVector_NetQuantize100` 的 Scale：100 = 0.01 单位（即 cm 定点两位小数）。
     pub location_scale: f32,
@@ -77,7 +80,7 @@ impl RepMovementProfile {
         Self {
             name: "dfm-r39".to_string(),
             packed_flags_bytes: 1,
-            location_bits: 20,
+            location_bits: 24,
             location_scale: 0.01,
             velocity_bits: 16,
             velocity_scale: 1.0,
@@ -317,15 +320,18 @@ impl RotationCorrection {
     }
 
     /// 从整份 `maps.json` 里取某个地图键的修正参数；缺失则返回默认。
+    ///
+    /// `maps.json` 的顶层就是地图表（也可能被包在 `"maps"` 下）；`"default"` 是
+    /// 显式的兜底条目。**未知地图必须回落 [`RotationCorrection::default()`]**
+    /// （出厂恒等映射，与 `radar.js`/`maps.json` 一致）——不能拿表里"第一个"
+    /// 条目顶替：`serde_json` 默认按 key 排序，那样 `Nope` 会随机拿到某张图的
+    /// `yaw_sign`（例如 Layali 的 -1），朝向会被"纠正"成镜像。
     pub fn from_maps_json(json: &str, map_key: Option<&str>) -> Self {
         let Ok(root) = serde_json::from_str::<serde_json::Value>(json) else {
             return Self::default();
         };
         let maps = root.get("maps").unwrap_or(&root);
-        let entry = map_key
-            .and_then(|k| maps.get(k))
-            .or_else(|| root.get("default"))
-            .or_else(|| maps.as_object().and_then(|o| o.values().next()));
+        let entry = map_key.and_then(|k| maps.get(k)).or_else(|| maps.get("default"));
         match entry {
             Some(e) => Self::from_map_entry(e),
             None => Self::default(),

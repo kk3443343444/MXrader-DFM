@@ -80,6 +80,8 @@ pub fn anonymize(endpoint: &str) -> String {
 /// 采集器。
 pub struct Capture {
     cfg: CaptureConfig,
+    /// 落盘文件名前缀：全量产物 `battle-full-capture-`，解析产物 `battle-parse-`。
+    file_prefix: &'static str,
     enabled: bool,
     started_ms: u64,
     written_bytes: u64,
@@ -94,6 +96,7 @@ impl Capture {
     pub fn new(cfg: CaptureConfig) -> Self {
         Self {
             cfg,
+            file_prefix: "battle-full-capture-",
             enabled: false,
             started_ms: 0,
             written_bytes: 0,
@@ -102,6 +105,12 @@ impl Capture {
             path: None,
             written_entries: 0,
         }
+    }
+
+    /// 覆盖落盘文件名前缀（`battle-parse-` 用于"只落解析成功"的产物）。
+    pub fn with_file_prefix(mut self, prefix: &'static str) -> Self {
+        self.file_prefix = prefix;
+        self
     }
 
     pub fn enabled(&self) -> bool {
@@ -114,10 +123,10 @@ impl Capture {
         self.written_bytes
     }
 
-    /// 开启采集：创建 `battle-full-capture-<ts>.ndjson`。
+    /// 开启采集：创建 `<prefix><ts>.ndjson`（默认 `battle-full-capture-`）。
     pub fn start(&mut self, data_dir: &Path, now_ms: u64) -> std::io::Result<PathBuf> {
         std::fs::create_dir_all(data_dir)?;
-        let name = format!("battle-full-capture-{now_ms}.ndjson");
+        let name = format!("{}{now_ms}.ndjson", self.file_prefix);
         let path = data_dir.join(name);
         let f = OpenOptions::new().create(true).append(true).open(&path)?;
         self.writer = Some(BufWriter::with_capacity(64 * 1024, f));

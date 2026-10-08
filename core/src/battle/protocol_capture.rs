@@ -52,7 +52,7 @@ impl ProtocolCapture {
         };
         Self {
             full: Mutex::new(Capture::new(cfg.clone())),
-            parsed: Mutex::new(Capture::new(cfg)),
+            parsed: Mutex::new(Capture::new(cfg).with_file_prefix("battle-parse-")),
             policy,
             data_dir: state.data_directory().to_path_buf(),
             stopped_reason: Mutex::new(None),

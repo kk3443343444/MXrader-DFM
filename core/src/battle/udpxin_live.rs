@@ -149,9 +149,25 @@ impl LivenessTracker {
         self.records.is_empty()
     }
 
+    /// 取记录；新建（或复用）时按 `authoritative_local_channel` 播下 `local_char`。
+    ///
+    /// `authoritative_current_local_char` 是权威标记：本地角色常常在
+    /// `set_authoritative_local_channel` 之后才出现位移/死亡包，而 `entry(...)`
+    /// 新建的记录默认 `local_char = false`，于是 `reap_stale` 会把自己的角色当僵尸
+    /// 清掉（雷达上"自己"消失）。所以创建/取用两条路径都要跟上。
+    fn record(&mut self, channel: u32, now_ms: u64) -> &mut LiveRecord {
+        let local = Some(channel) == self.authoritative_local_channel;
+        let rec = self
+            .records
+            .entry(channel)
+            .or_insert_with(|| LiveRecord::new(channel, now_ms));
+        rec.local_char = local;
+        rec
+    }
+
     /// 报告一次位移。返回是否发生了"复活"判定。
     pub fn note_move(&mut self, channel: u32, source: MoveSource, now_ms: u64) -> bool {
-        let rec = self.records.entry(channel).or_insert_with(|| LiveRecord::new(channel, now_ms));
+        let rec = self.record(channel, now_ms);
         rec.last_move_ms = now_ms;
         rec.last_move_indexed = matches!(source, MoveSource::Indexed);
 
@@ -183,7 +199,7 @@ impl LivenessTracker {
         rescue_window_s: Option<f32>,
         now_ms: u64,
     ) {
-        let rec = self.records.entry(channel).or_insert_with(|| LiveRecord::new(channel, now_ms));
+        let rec = self.record(channel, now_ms);
         if rec.state != LiveState::Downed {
             rec.since_ms = now_ms;
         }
@@ -199,7 +215,7 @@ impl LivenessTracker {
 
     /// 报告一次确定死亡（`DeadInfo` 非空 / `bDeadCanOPtimise`）。
     pub fn note_death(&mut self, channel: u32, now_ms: u64) {
-        let rec = self.records.entry(channel).or_insert_with(|| LiveRecord::new(channel, now_ms));
+        let rec = self.record(channel, now_ms);
         rec.state = LiveState::Dead;
         rec.since_ms = now_ms;
         rec.rescue_window_s = None;
@@ -207,7 +223,7 @@ impl LivenessTracker {
 
     /// 报告角色化为死亡盒。
     pub fn note_dead_box(&mut self, channel: u32, now_ms: u64) {
-        let rec = self.records.entry(channel).or_insert_with(|| LiveRecord::new(channel, now_ms));
+        let rec = self.record(channel, now_ms);
         rec.state = LiveState::DeadBox;
         rec.since_ms = now_ms;
     }
@@ -215,16 +231,10 @@ impl LivenessTracker {
     /// 应用属性层的 live status。
     pub fn note_raw_live_status(&mut self, channel: u32, status: u8, now_ms: u64) {
         // 先把旧状态读出来（不要跨调用持有 entry 的借用）。
-        let (rescue_window, was_alive) = match self.records.get_mut(&channel) {
-            Some(rec) => {
-                rec.raw_live_status = Some(status);
-                (rec.rescue_window_s, rec.state == LiveState::Alive)
-            }
-            None => {
-                self.records.insert(channel, LiveRecord::new(channel, now_ms));
-                (None, false)
-            }
-        };
+        let existed = self.records.contains_key(&channel);
+        let rec = self.record(channel, now_ms);
+        rec.raw_live_status = Some(status);
+        let (rescue_window, was_alive) = (rec.rescue_window_s, existed && rec.state == LiveState::Alive);
         // 约定（r39）：0=活，1=倒地，2=死亡，3=死亡盒；其它值不动状态机。
         match status {
             1 => self.note_recoverable_death(channel, rescue_window, now_ms),
@@ -284,9 +294,12 @@ impl LivenessTracker {
     /// 清理长期不活跃记录（默认 120 秒）。
     pub fn reap_stale(&mut self, now_ms: u64, ttl_ms: u64) -> usize {
         let before = self.records.len();
-        self.records.retain(|_, r| {
+        let local = self.authoritative_local_channel;
+        self.records.retain(|ch, r| {
             let idle = now_ms.saturating_sub(r.last_move_ms.max(r.since_ms));
-            idle < ttl_ms || r.local_char
+            // 权威本地通道永不回收（`local_char` 再兜一层：即使记录是在
+            // `set_authoritative_local_channel` 之前建的老记录）。
+            Some(*ch) == local || r.local_char || idle < ttl_ms
         });
         before - self.records.len()
     }

@@ -36,9 +36,26 @@ REM pipe, and non-ASCII arguments get mangled by the OEM code page). The usernam
 REM travels as an inherited environment variable, which is UTF-16 on Windows and
 REM therefore survives Chinese input intact.
 set "GH_USER_VALID=no"
-for /f "usebackq delims=" %%v in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "if ($env:GH_USER -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$$' -and $env:GH_USER -notmatch '--$$' -and $env:GH_USER -notmatch '^-') { 'yes' } else { 'no' }"`) do set "GH_USER_VALID=%%v"
+for /f "usebackq delims=" %%v in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "if ($env:GH_USER -match '@') { 'email' } elseif ($env:GH_USER -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$$' -and $env:GH_USER -notmatch '--$$' -and $env:GH_USER -notmatch '^-') { 'ok' } else { 'bad' }"`) do set "GH_USER_VALID=%%v"
 
-if not "%GH_USER_VALID%"=="yes" (
+if "%GH_USER_VALID%"=="email" (
+  echo [push] "%GH_USER%" looks like an EMAIL address, not a GitHub username.
+  echo [push]
+  echo [push] A GitHub username is chosen when you register - letters, digits and
+  echo [push] single hyphens, e.g. "octocat". It is NOT your email.
+  echo [push]
+  echo [push] To find yours:
+  echo [push]   1^) sign in at https://github.com
+  echo [push]   2^) click your avatar (top right) -^> "Your profile"
+  echo [push]   3^) the address bar shows https://github.com/XXXXXXX
+  echo [push]      the XXXXXXX part is your username
+  echo [push]
+  echo [push] If you do not have an account yet: https://github.com/signup
+  echo [push] (your QQ mailbox works fine as the signup email)
+  exit /b 2
+)
+
+if not "%GH_USER_VALID%"=="ok" (
   echo [push] "%GH_USER%" is not a valid GitHub username.
   echo [push] expected 1-39 chars: letters, digits, single hyphens, must start
   echo [push] with a letter/digit. Do NOT paste a placeholder like ^<your-name^>.

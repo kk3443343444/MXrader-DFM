@@ -86,6 +86,47 @@ fn read_net_guid(r: &mut BitReader<'_>) -> u64 {
     r.read_packed_int64()
 }
 
+/// 按位读一个 `FString`（int32 长度 + ANSI/UTF-16 净荷）。
+///
+/// 导出表的字段**不是字节对齐**的：`NetGUID` + `flags` + 外层 GUID + `bHasPath`
+/// 共 27 位之后就是字符串长度，字符串净荷又从第 59 位开始。`BitReader::read_bytes`
+/// 会先对齐到字节边界，把 5 个非填充位当成填充丢掉，于是本条之后的每一次读取都
+/// 错位 5 位（`bHasPath`/`bNoLoad` 都会读到别人的数据，末尾还会误报 bit overflow，
+/// 整批 `parsed` 归零）。UE 的 `FBitReader::Serialize` 走 `SerializeBits`，不做
+/// 对齐，所以这里也按位读。
+fn read_path_fstring(r: &mut BitReader<'_>) -> Option<String> {
+    let len = r.read_bits(32) as i32;
+    if len == 0 {
+        return Some(String::new());
+    }
+    if len > 0 {
+        let n = len as usize;
+        let mut bytes = Vec::with_capacity(n);
+        for _ in 0..n {
+            bytes.push(r.read_bits(8) as u8);
+        }
+        if r.overflowed() {
+            return None;
+        }
+        // 长度含结尾 NUL，去掉它。
+        Some(String::from_utf8_lossy(&bytes[..bytes.len().saturating_sub(1)]).to_string())
+    } else {
+        let n = (-len) as usize;
+        let mut s = String::with_capacity(n);
+        for _ in 0..n {
+            let u = r.read_bits(16) as u16;
+            if u == 0 {
+                break;
+            }
+            s.push(char::from_u32(u as u32).unwrap_or('\u{fffd}'));
+        }
+        if r.overflowed() {
+            return None;
+        }
+        Some(s)
+    }
+}
+
 /// 解析一段导出净荷（位流）。
 ///
 /// `bit_limit` 限制最大读取量，避免恶意/损坏包把 CPU 吃掉（样本会记
@@ -128,7 +169,7 @@ pub fn parse_export_batch(
         let has_path = if profile.has_path_bit { r.read_bit() } else { true };
         if has_path {
             let path = if profile.path_as_fstring {
-                r.read_fstring()
+                read_path_fstring(&mut r)
             } else {
                 None
             };
