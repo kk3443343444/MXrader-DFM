@@ -106,6 +106,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # 产物同时发到一个固定的 Release。理由：Actions 的 Artifacts 下载需要登录，
+      # 而 Release 资产是匿名可下的 —— 这样手机/另一台电脑直接点链接就能拿包，
+      # 也不用把 IPA 传来传去。tag 固定为 ipa-latest，每次构建覆盖同一个资产。
+      - name: Publish IPA to a GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ipa-latest
+          name: MXrader unsigned IPA (latest)
+          body: |
+            由 CI 自动构建的**未签名** IPA，源码提交 `${{ github.sha }}`。
+
+            安装：用 Sideloadly / AltStore 载入本文件，填你自己的 Apple ID 签名后安装
+            （免签需越狱设备 + TrollStore）。详见仓库 docs/BUILD_IPA.md。
+
+            校验：`Payload/BattleReceiverOpen.app/` 下应含 `BattleReceiverOpen`、
+            `Info.plist`、`PkgInfo` 与 `web/` 目录。
+          files: dist/*.ipa
+          make_latest: true
+          fail_on_unmatched_files: true
+
       # ---------------------------------------------------------------- 失败排查
       # 作业日志接口需要鉴权，脚本读不到；这里把关键输出汇总成一个文件，推到一个
       # 独立分支（ci-logs），于是它可以被匿名读取：

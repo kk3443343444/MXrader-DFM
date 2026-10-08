@@ -20,6 +20,14 @@ ROOT="$(cd "$HERE/.." && pwd)"
 NAME="$(basename "$APP" .app)"
 OUT="${2:-$ROOT/dist/${NAME}-unsigned.ipa}"
 
+# 把 OUT 绝对化，再做任何 cd。
+# 坑：脚本最后要 `( cd "$STAGE" && zip "$OUT" Payload )`；如果调用方传的是相对路径
+# （CI 里我们传的就是 "dist/xxx.ipa"），这个相对路径会在 cd 之后被解析成
+# "$STAGE/dist/xxx.ipa" —— 目录不存在，于是 zip 报
+# "I/O error: No such file or directory / Could not create output file"。
+mkdir -p "$(dirname "$OUT")"
+OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
+
 mkdir -p "$(dirname "$OUT")"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
