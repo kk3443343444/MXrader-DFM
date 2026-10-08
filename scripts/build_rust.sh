@@ -45,18 +45,27 @@ command -v cargo >/dev/null || { echo "错误：找不到 cargo，请先安装 R
 
 mkdir -p "$OUT"
 
+# 注意：这里刻意不用 `[[ ... ]] && VAR=...` 这种写法。
+# 条件是假的时候整条语句返回非零，在 `set -e` 下会**静默退出脚本**（没有输出、看不出原因）。
 PROFILE_FLAG=()
-[[ "$PROFILE" == "release" ]] && PROFILE_FLAG=(--release)
+if [[ "$PROFILE" == "release" ]]; then
+  PROFILE_FLAG=(--release)
+fi
 
 TARGETS=(aarch64-apple-ios)
-[[ "$WITH_SIM" == "1" ]] && TARGETS+=(x86_64-apple-ios)
+if [[ "$WITH_SIM" == "1" ]]; then
+  TARGETS+=(x86_64-apple-ios)
+fi
 
 echo "==> 安装 iOS target：${TARGETS[*]}"
 rustup target add "${TARGETS[@]}" >/dev/null
 
 for t in "${TARGETS[@]}"; do
-  echo "==> cargo build --target $t ($PROFILE)"
-  ( cd "$CORE" && cargo build --target "$t" "${PROFILE_FLAG[@]}" )
+  echo "==> cargo build --lib --target $t ($PROFILE)"
+  # `--lib` 很关键：不加的话 cargo 会连 src/bin/*.rs 一起编（battle_receiver /
+  # battle_replay 是**可执行程序**），在 iOS target 下去链接两个跑不起来的命令行程序，
+  # 既浪费时间又容易因为链接器环境失败。iOS 侧只要那个 staticlib。
+  ( cd "$CORE" && cargo build --lib --target "$t" "${PROFILE_FLAG[@]}" )
   ls -la "$CORE/target/$t/$PROFILE/libbattle_proxy.a" | awk '{print "    " $5 " bytes  " $9}'
 done
 

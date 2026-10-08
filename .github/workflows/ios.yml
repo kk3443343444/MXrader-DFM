@@ -6,12 +6,16 @@
 # 的 Apple ID 签名后即可安装（见 scripts/make_unsigned_ipa.sh 的说明）。
 #
 # 用法：
-#   1) 把这个仓库推到 GitHub（public 免费额度足够；private 每月 2000 分钟也够用）
-#   2) Actions → "iOS IPA" → Run workflow
-#   3) 跑完在 Artifacts 里下载 MXrader-unsigned-ipa
+#   1) 推到 GitHub（push 到 main 会自动触发；也可以手动 Run workflow）
+#   2) 跑完在 Artifacts 里下载 MXrader-unsigned-ipa
 #
-# 注意：swift 那 13 个文件在本机从未编译过，第一次 CI 极可能报错 —— 这属于预期，
-# 那些错误只有在 macOS 上才会暴露。把日志贴回来即可继续修。
+# 失败排查：GitHub 的"作业日志"接口需要鉴权，脚本读不到。所以失败时本工作流会把
+# 构建输出**推回仓库的 ci-logs 分支**（只含日志，一行代码没有），这样任何人都能用
+# 匿名 contents API 读到失败原因：
+#     https://raw.githubusercontent.com/<owner>/<repo>/ci-logs/ci-failure.log
+#
+# 注意：swift 那 13 个文件在开发机（Windows）从未编译过，第一次 CI 极可能报错 ——
+# 这属于预期，那些错误只有在 macOS 上才会暴露。
 
 name: iOS IPA
 
@@ -25,6 +29,10 @@ on:
       - 'web/**'
       - 'scripts/**'
       - '.github/workflows/ios.yml'
+
+# 失败时要把日志推到 ci-logs 分支，所以需要写权限。
+permissions:
+  contents: write
 
 jobs:
   build-ipa:
@@ -57,7 +65,10 @@ jobs:
         run: brew install xcodegen
 
       - name: Build Rust static library (device arm64)
-        run: ./scripts/build_rust.sh --device-only
+        # pipefail 保证 cargo 失败不会被 tee 的成功掩盖
+        run: |
+          set -o pipefail
+          ./scripts/build_rust.sh --device-only 2>&1 | tee rust-build.log
 
       - name: Generate Xcode project
         working-directory: ios
@@ -78,7 +89,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             ONLY_ACTIVE_ARCH=NO \
-            build
+            build 2>&1 | tee ../xcodebuild.log
 
       - name: Assemble unsigned IPA
         run: |
@@ -94,14 +105,51 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # 编译失败时把完整日志也存下来，方便贴回来定位（iOS 部分本机没法预演）
-      - name: Upload build log on failure
+      # ---------------------------------------------------------------- 失败排查
+      # 作业日志接口需要鉴权，脚本读不到；这里把关键输出汇总成一个文件，推到一个
+      # 独立分支（ci-logs），于是它可以被匿名读取：
+      #   https://raw.githubusercontent.com/<owner>/<repo>/ci-logs/ci-failure.log
+      - name: Collect failure log
+        if: failure()
+        run: |
+          {
+            echo "# CI failure @ $(date -u +%FT%TZ)"
+            echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo '## rust-build.log (tail 400 lines)'
+            echo '```'
+            tail -n 400 rust-build.log 2>/dev/null || echo '(no rust-build.log)'
+            echo '```'
+            echo
+            echo '## xcodebuild.log (error/warning lines)'
+            echo '```'
+            grep -E "error:|warning:|fatal error:|BUILD FAILED|The following build commands" xcodebuild.log 2>/dev/null | head -n 200 \
+              || tail -n 200 xcodebuild.log 2>/dev/null \
+              || echo '(no xcodebuild.log)'
+            echo '```'
+          } > ci-failure.log
+          wc -l ci-failure.log
+
+      - name: Publish failure log to ci-logs branch
+        if: failure()
+        run: |
+          set -euo pipefail
+          git config user.name "mxrader-ci"
+          git config user.email "ci@localhost"
+          git checkout -B ci-logs
+          git add -f ci-failure.log
+          git commit -m "ci failure log ($(date -u +%FT%TZ))"
+          git push -f origin ci-logs
+          echo "log: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/raw/ci-logs/ci-failure.log"
+
+      - name: Upload artifacts for backup
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: build-logs
           path: |
-            build/dd/Logs/**
-            ios/*.log
+            rust-build.log
+            xcodebuild.log
+            ci-failure.log
           if-no-files-found: ignore
           retention-days: 7
