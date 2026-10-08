@@ -60,6 +60,28 @@ pub fn web_root_is_usable() -> bool {
     PathBuf::from(web_root()).join("index.html").is_file()
 }
 
+/// 从可执行文件位置反推 app 包里的 `web/`。
+///
+/// iOS 上 `current_exe()` 是 `<...>/Bundle.app/BattleReceiverOpen`，父目录就是 app 包，
+/// 而 XcodeGen 用 `type: folder` 把前端整体拷在包根（`<app>/web/`）。
+/// 有这一层，即使 Swift 忘了传 `web_root`（真机就踩过：服务端只能返回
+/// "radar page missing" 占位页，界面显示"HTML 已载入但地图前端未完成挂载"），
+/// 也能自己找到前端。两层互为保险。
+fn discover_bundle_web_root() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let app_dir = exe.parent()?;
+    let candidate = app_dir.join("web");
+    if candidate.join("index.html").is_file() {
+        return Some(candidate);
+    }
+    // 少数打包方式会把资源放到 .app/<BundleName>/ 下，顺手试一下。
+    let nested = app_dir.join(exe.file_stem()?).join("web");
+    if nested.join("index.html").is_file() {
+        return Some(nested);
+    }
+    None
+}
+
 fn resolve_web_root() -> String {
     // ① 显式设置（不可能走到这里，set_web_root 已填 OnceLock）
     if let Some(v) = WEB_ROOT.get() {
@@ -76,19 +98,24 @@ fn resolve_web_root() -> String {
 
     let mut candidates: Vec<(PathBuf, &'static str)> = Vec::new();
 
-    // ③ 沙箱里的运行时资源目录
+    // ③ app 包（iOS 真机/模拟器的主路径）
+    if let Some(bundle) = discover_bundle_web_root() {
+        candidates.push((bundle, "app bundle"));
+    }
+
+    // ④ 沙箱里的运行时资源目录
     candidates.push((PathBuf::from("runtime"), "data_directory/runtime"));
     if let Ok(dir) = std::env::var("BATTLE_DATA_DIR") {
         candidates.push((PathBuf::from(dir).join("runtime"), "data_directory/runtime"));
     }
 
-    // ④ 开发机：crate 旁边的 ../web
+    // ⑤ 开发机：crate 旁边的 ../web
     candidates.push((
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../web"),
         "crate/../web",
     ));
 
-    // ⑤ 兜底
+    // ⑥ 兜底
     candidates.push((PathBuf::from("."), "cwd"));
 
     for (path, source) in candidates {

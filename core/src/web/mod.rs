@@ -420,9 +420,14 @@ async fn battle_page(State(ctx): State<WebCtx>) -> Response {
                 StatusCode::NOT_FOUND,
                 [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
                 format!(
-                    "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>battle</title></head>\
-                     <body><div id=\"app\"></div><p>radar page missing: {}</p></body></html>",
-                    path.display()
+                    "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>battle</title></head>\
+                     <body><div id=\"app\"></div>\
+                     <p>radar page missing: {path}</p>\
+                     <p>web_root = {root}</p>\
+                     <p>排查：确认 app 包里的 web/index.html 存在，并把它的绝对路径通过配置项 web_root 传给核心。</p>\
+                     </body></html>",
+                    path = path.display(),
+                    root = embed::web_root(),
                 ),
             )
                 .into_response()

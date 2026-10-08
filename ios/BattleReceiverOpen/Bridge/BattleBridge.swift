@@ -334,6 +334,13 @@ struct ReceiverConfig: Codable, Equatable, Sendable {
 
     var dataDirectory: String
     var brand: String
+    /// app 包内雷达前端目录的**绝对路径**。
+    ///
+    /// 必须显式传：Rust 侧 `embed::web_root()` 的默认值是 `env!("CARGO_MANIFEST_DIR")/../web`，
+    /// 那是**编译机器**上的路径（CI 上就是 /Users/runner/work/...），在手机上不存在，
+    /// 于是服务端只能返回 "radar page missing" 的占位页 —— 真机上表现为
+    /// "雷达页面异常：HTML 已载入但地图前端未完成挂载"。
+    var webRoot: String?
     var endpoint: EndpointBlock
     var transport: TransportBlock
     var sessionModel: String
@@ -348,6 +355,7 @@ struct ReceiverConfig: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case dataDirectory = "data_directory"
         case brand, endpoint, transport
+        case webRoot = "web_root"
         case sessionModel = "session_model"
         case parserAsync = "parser_async"
         case readOnlyRadar = "read_only_radar"
@@ -361,6 +369,14 @@ struct ReceiverConfig: Codable, Equatable, Sendable {
     /// The contract default port window: 2025...2045 inclusive.
     static let defaultPortRange: [UInt16] = [2025, 2045]
 
+    /// app 包里的雷达前端目录。XcodeGen 用 `type: folder` 把它整体拷进 bundle 根，
+    /// 所以就是 `<bundle>/web`。找不到时退回 nil，交给 Rust 用它自己的兜底逻辑
+    /// （那时诊断页会直接显示它尝试过的路径，便于定位）。
+    static var bundledWebRoot: String? {
+        let path = Bundle.main.bundlePath + "/web"
+        return FileManager.default.fileExists(atPath: path + "/index.html") ? path : nil
+    }
+
     /// Canonical configuration for this build. Every field is explicit so the
     /// Rust side never has to fall back to a default that the UI does not know
     /// about.
@@ -369,11 +385,13 @@ struct ReceiverConfig: Codable, Equatable, Sendable {
         brand: String,
         adminToken: String,
         activationURL: String = "https://license.invalid/api/activate",
-        portRange: [UInt16] = ReceiverConfig.defaultPortRange
+        portRange: [UInt16] = ReceiverConfig.defaultPortRange,
+        webRoot: String? = ReceiverConfig.bundledWebRoot
     ) -> ReceiverConfig {
         ReceiverConfig(
             dataDirectory: dataDirectory,
             brand: brand,
+            webRoot: webRoot,
             endpoint: EndpointBlock(
                 interface: "0.0.0.0",
                 ports: EndpointBlock.Ports(range: portRange)
