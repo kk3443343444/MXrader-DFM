@@ -2,13 +2,21 @@
 # build_rust.sh — 交叉编译 Rust 核心为 iOS 静态库
 #
 # 产物：
-#   core/target/ios/libbattle_proxy.a   （真机 arm64 + 模拟器 arm64/x86_64 的 universal 库）
-#   core/target/ios/battle_proxy.h      （C ABI 头文件，供 Xcode 引用）
+#   core/target/ios/libbattle_proxy.a   （link 进 app 主二进制）
+#   core/target/ios/battle_proxy.h      （C ABI 头，供 Xcode 引用）
 #
-# 必须在 macOS 上运行（需要 Xcode 的 clang/SDK）。
-# 与样本一致：Rust 以 staticlib 形式**静态链接进 app 主二进制**，
-# 因此最终 IPA 里没有 Frameworks/ 目录、没有独立 dylib，
-# 主程序是单一 MH_EXECUTE，Swift 与 Rust 符号共存。
+# 必须在 macOS 上运行（需要 Xcode 的 clang/SDK）。与样本一致：Rust 以 staticlib
+# 形式**静态链接进 app 主二进制**，所以最终 IPA 里没有 Frameworks/ 目录、没有独立
+# dylib，主程序是单一 MH_EXECUTE，Swift 与 Rust 符号共存。
+#
+# 用法：
+#   ./scripts/build_rust.sh                 # 只编真机 arm64（默认；CI 与真机构建都用这个）
+#   ./scripts/build_rust.sh --with-sim      # 额外把 x86_64 模拟器切片 lipo 进来（Intel Mac 调试用）
+#
+# 为什么默认不编模拟器切片：`aarch64-apple-ios`（真机）与 `aarch64-apple-ios-sim`
+# 是**同一个 arm64 架构**，lipo 无法把两个 arm64 切片合并成一个 fat 文件（会直接报错）。
+# 想在 Apple Silicon 的模拟器上跑，直接用 rustup 装 aarch64-apple-ios-sim 并让 Xcode
+# 走那个 target；本脚本只负责产出真机库 + 可选的 x86_64 模拟器切片。
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,58 +24,58 @@ ROOT="$(cd "$HERE/.." && pwd)"
 CORE="$ROOT/core"
 OUT="$CORE/target/ios"
 PROFILE="${PROFILE:-release}"
+WITH_SIM=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --with-sim) WITH_SIM=1 ;;
+    --device-only) WITH_SIM=0 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    *) echo "未知参数：$arg（--help 看用法）" >&2; exit 2 ;;
+  esac
+done
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "错误：iOS 静态库只能在 macOS 上构建（当前 $(uname -s)）。" >&2
-  echo "提示：可以在 macOS CI 上跑本脚本，或仅在 PC 上开发 core 的单元测试：cd core && cargo test" >&2
+  echo "提示：core 的单元测试不需要 macOS：cd core && cargo test" >&2
   exit 1
 fi
 
 command -v cargo >/dev/null || { echo "错误：找不到 cargo，请先安装 Rust（rustup）。" >&2; exit 1; }
 
-echo "==> 安装 iOS target（若缺失）"
-rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios >/dev/null
-
 mkdir -p "$OUT"
 
-TARGET_DIR_FLAG=()
-if [[ "$PROFILE" == "release" ]]; then
-  PROFILE_FLAG=(--release)
-else
-  PROFILE_FLAG=()
+PROFILE_FLAG=()
+[[ "$PROFILE" == "release" ]] && PROFILE_FLAG=(--release)
+
+TARGETS=(aarch64-apple-ios)
+[[ "$WITH_SIM" == "1" ]] && TARGETS+=(x86_64-apple-ios)
+
+echo "==> 安装 iOS target：${TARGETS[*]}"
+rustup target add "${TARGETS[@]}" >/dev/null
+
+for t in "${TARGETS[@]}"; do
+  echo "==> cargo build --target $t ($PROFILE)"
+  ( cd "$CORE" && cargo build --target "$t" "${PROFILE_FLAG[@]}" )
+  ls -la "$CORE/target/$t/$PROFILE/libbattle_proxy.a" | awk '{print "    " $5 " bytes  " $9}'
+done
+
+cp "$CORE/target/aarch64-apple-ios/$PROFILE/libbattle_proxy.a" "$OUT/libbattle_proxy.a"
+
+if [[ "$WITH_SIM" == "1" ]]; then
+  echo "==> 合并真机 arm64 + 模拟器 x86_64（架构不同，可以 lipo）"
+  lipo -create \
+    "$CORE/target/aarch64-apple-ios/$PROFILE/libbattle_proxy.a" \
+    "$CORE/target/x86_64-apple-ios/$PROFILE/libbattle_proxy.a" \
+    -output "$OUT/libbattle_proxy.a"
 fi
-
-build_one() {
-  local target="$1"
-  echo "==> cargo build --target $target ($PROFILE)"
-  ( cd "$CORE" && cargo build --target "$target" "${PROFILE_FLAG[@]}" )
-  echo "    $(ls -la "$CORE/target/$target/$PROFILE/libbattle_proxy.a" | awk '{print $5, $9}')"
-}
-
-build_one aarch64-apple-ios
-build_one aarch64-apple-ios-sim
-build_one x86_64-apple-ios
-
-echo "==> 合并模拟器切片（arm64 + x86_64）"
-SIM_LIB="$OUT/libbattle_proxy-sim.a"
-lipo -create \
-  "$CORE/target/aarch64-apple-ios-sim/$PROFILE/libbattle_proxy.a" \
-  "$CORE/target/x86_64-apple-ios/$PROFILE/libbattle_proxy.a" \
-  -output "$SIM_LIB"
-
-echo "==> 合并真机 + 模拟器（universal）"
-lipo -create \
-  "$CORE/target/aarch64-apple-ios/$PROFILE/libbattle_proxy.a" \
-  "$SIM_LIB" \
-  -output "$OUT/libbattle_proxy.a"
 
 cp "$CORE/include/battle_proxy.h" "$OUT/battle_proxy.h"
 
 echo "==> 结果"
-lipo -info "$OUT/libbattle_proxy.a"
+lipo -info "$OUT/libbattle_proxy.a" 2>/dev/null || file "$OUT/libbattle_proxy.a"
 echo "静态库: $OUT/libbattle_proxy.a"
 echo "头文件: $OUT/battle_proxy.h"
 echo
 echo "下一步：cd ios && xcodegen generate && open BattleReceiverOpen.xcodeproj"
-echo "提示：链接时需要这些系统库（project.yml 已配置）："
-echo "      -lc++ -lresolv -framework Security -framework Network -framework SystemConfiguration"
+echo "链接所需的系统库（project.yml 已配）：-lc++ -lresolv -framework Security -framework Network -framework WebKit"

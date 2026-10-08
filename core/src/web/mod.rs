@@ -696,8 +696,13 @@ fn profile_response(brand: &str, ctx: &WebCtx, body: Vec<u8>) -> Response {
 }
 
 /// Strips characters that are unsafe inside a `Content-Disposition` filename.
+///
+/// Path separators are dropped rather than substituted: a substituted `_` would keep two distinct
+/// attacker-supplied names looking like one path (`cap/../x.bin` -> `cap_.._x.bin`), and the
+/// download handler only ever wants the flat leaf name.
 fn sanitize_filename(raw: &str) -> String {
     raw.chars()
+        .filter(|c| *c != '/' && *c != '\\')
         .map(|c| {
             if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' || c == ':' {
                 c

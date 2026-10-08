@@ -22,7 +22,7 @@ ROOT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else '.').resolve()
 problems: list[str] = []
 
 
-def lex_braces(text: str, js: bool = False) -> tuple[int, int, int]:
+def lex_braces(text: str, js: bool = False, swift: bool = False) -> tuple[int, int, int]:
     """Return (open, close, paren_delta) after stripping comments/strings.
 
     `js=True` additionally blanks JavaScript regular-expression literals, which
@@ -107,7 +107,12 @@ def lex_braces(text: str, js: bool = False) -> tuple[int, int, int]:
                     break
                 i += 1
             continue
-        # char literal vs lifetime (Rust)
+        # char literal vs lifetime (Rust); Swift has neither - its `'` is just an
+        # apostrophe inside a string literal, which is already consumed above.
+        if c == "'" and swift:
+            i += 1
+            prev_sig = "'"
+            continue
         if c == "'":
             nxt = text[i + 1:i + 3]
             if re.match(r"[A-Za-z_][A-Za-z0-9_]*", nxt) and not re.match(
@@ -168,6 +173,30 @@ def check_common(p: pathlib.Path, text: str) -> None:
         problems.append(f'{rel}: no trailing newline')
 
 
+def check_swift(p: pathlib.Path, text: str) -> None:
+    """Swift structural check: same lexer, plus multi-line string handling.
+
+    This does not type-check anything - it catches the failure mode that would
+    otherwise only surface on a macOS CI run: a truncated or half-written file
+    with unbalanced braces.
+    """
+    rel = p.relative_to(ROOT)
+    o, c, paren = lex_braces(text, swift=True)
+    if o != c:
+        problems.append(f'{rel}: unbalanced braces ({o} open vs {c} close)')
+    if paren != 0:
+        problems.append(f'{rel}: unbalanced parentheses (delta {paren:+d})')
+    for pat, label in (
+        (r'\bTODO\(', 'TODO('),
+        (r'\bfatalError\(', 'fatalError('),
+    ):
+        n = len(re.findall(pat, text))
+        if n:
+            problems.append(f'{rel}: {n}x {label} left in the source')
+    if '\t' in text:
+        problems.append(f'{rel}: contains tab indentation')
+
+
 def check_js(p: pathlib.Path, text: str) -> None:
     rel = p.relative_to(ROOT)
     o, c, paren = lex_braces(text, js=True)
@@ -191,7 +220,7 @@ def check_mods() -> None:
 
 
 def main() -> int:
-    exts = {'.rs': check_rust, '.js': check_js}
+    exts = {'.rs': check_rust, '.js': check_js, '.swift': check_swift}
     plain = ('.swift', '.css', '.html', '.sh', '.py', '.toml', '.yml', '.json', '.md', '.h')
     files = [
         p for p in ROOT.rglob('*')

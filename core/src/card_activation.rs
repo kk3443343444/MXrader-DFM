@@ -153,13 +153,17 @@ pub fn local_authorized(cfg: &Config, now_ms: u64) -> (bool, Option<String>) {
 }
 
 /// 激活：本地校验格式 → 远端校验 → 落盘。
+///
+/// 无论走哪条失败分支，都必须把运行时授权状态置回 `false`：`RuntimeStatus::default()` 是
+/// 未授权的 `true`（[`crate::state::RuntimeStatus`]），只有显式回写才能保证"失败 = 未授权"，
+/// 否则 `/license/status` 会在一次失败的激活后继续报 `authorized:true`。
 pub async fn activate(state: &AppState, cfg: &Config, card: &str) -> ActivationResult {
     let card = card.trim();
     if card.is_empty() {
-        return ActivationResult::fail("请输入卡密");
+        return deny(state, ActivationResult::fail("请输入卡密"));
     }
     if card.len() < 8 {
-        return ActivationResult::fail("卡密格式不正确");
+        return deny(state, ActivationResult::fail("卡密格式不正确"));
     }
 
     let now = crate::battle::parse_queue::now_ms();
@@ -198,6 +202,12 @@ pub async fn activate(state: &AppState, cfg: &Config, card: &str) -> ActivationR
     } else {
         state.set_authorized(false, None, result.reason.clone());
     }
+    result
+}
+
+/// 统一的失败出口：清掉运行时授权状态后把结果原样返回。
+fn deny(state: &AppState, result: ActivationResult) -> ActivationResult {
+    state.set_authorized(false, None, result.reason.clone());
     result
 }
 

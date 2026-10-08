@@ -36,10 +36,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Rust toolchain + iOS targets
+      - name: Rust toolchain + iOS target
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+          # 只装真机 target：模拟器 arm64 与真机 arm64 是同一架构，lipo 不能合并，
+          # CI 出的是可侧载的真机包，模拟器切片在这里没有意义。
+          targets: aarch64-apple-ios
 
       - name: Cache cargo registry + target
         uses: actions/cache@v4
@@ -54,8 +56,8 @@ jobs:
       - name: XcodeGen
         run: brew install xcodegen
 
-      - name: Build Rust static library (device + sim, universal)
-        run: ./scripts/build_rust.sh
+      - name: Build Rust static library (device arm64)
+        run: ./scripts/build_rust.sh --device-only
 
       - name: Generate Xcode project
         working-directory: ios

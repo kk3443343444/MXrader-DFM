@@ -417,11 +417,12 @@ pub fn convert_entity(
         );
     }
 
-    // `x` / `y` are already metres here (divided by `CM_PER_METRE` above) and the origin is metres
-    // too (INTERFACES.md 5 `hello.world.origin_x/origin_y`), so the distance is a pure metre delta.
-    let x = object.get("x").and_then(|v| as_f64(v)).unwrap_or(0.0);
-    let y = object.get("y").and_then(|v| as_f64(v)).unwrap_or(0.0);
-    let distance = compute_distance(x, y, origin_x, origin_y);
+    // Both the entity position and the radar origin arrive in centimetres (this module's unit
+    // contract), so the metre delta is `x/100 - origin_x/100`. Converting only one of the two would
+    // scale the distance by 100 (`1350.6` instead of `50` in the shifted-origin case).
+    let x_m = object.get("x").and_then(|v| as_f64(v)).unwrap_or(0.0);
+    let y_m = object.get("y").and_then(|v| as_f64(v)).unwrap_or(0.0);
+    let distance = compute_distance(x_m, y_m, origin_x / CM_PER_METRE, origin_y / CM_PER_METRE);
     let rounded = (distance * 10.0).round() / 10.0;
     object.insert("distance".to_string(), number(rounded));
 
@@ -443,6 +444,9 @@ pub fn convert_entity(
 }
 
 /// Computes the planar distance between an entity and the radar origin, in **metres**.
+///
+/// All four arguments are metres: callers pass the already-converted entity position together with
+/// the origin divided by [`CM_PER_METRE`], so the result never mixes units.
 pub fn compute_distance(x_m: f64, y_m: f64, origin_x_m: f64, origin_y_m: f64) -> f64 {
     let dx = x_m - origin_x_m;
     let dy = y_m - origin_y_m;
