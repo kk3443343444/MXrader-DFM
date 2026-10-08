@@ -93,9 +93,10 @@ jobs:
 
       - name: Assemble unsigned IPA
         run: |
+          set -o pipefail
           APP="build/dd/Build/Products/Release-iphoneos/BattleReceiverOpen.app"
           ls -la "$(dirname "$APP")"
-          ./scripts/make_unsigned_ipa.sh "$APP" "dist/BattleReceiverOpen-mxrader-r39-unsigned.ipa"
+          ./scripts/make_unsigned_ipa.sh "$APP" "dist/BattleReceiverOpen-mxrader-r39-unsigned.ipa" 2>&1 | tee package.log
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -126,8 +127,23 @@ jobs:
             # 链接失败的关键行不是 "error:" 而是 "Undefined symbols" 那段，单独抓。
             grep -nE "error:|warning: .*deprecated|fatal error:|BUILD FAILED|Undefined symbols|symbol\(s\) not found|referenced from:|duplicate symbol|ld: |library not found|framework not found|The following build commands" xcodebuild.log 2>/dev/null \
               | head -n 250 \
-              || tail -n 200 xcodebuild.log 2>/dev/null \
-              || echo '(no xcodebuild.log)'
+              || echo '(xcodebuild.log 里没有任何 error/ld 行 —— 说明编译与链接都通过了)'
+            echo '```'
+            echo
+            echo '## package.log (tail 120 lines)'
+            echo '```'
+            tail -n 120 package.log 2>/dev/null || echo '(no package.log)'
+            echo '```'
+            echo
+            echo '## products on disk'
+            echo '```'
+            ls -la build/dd/Build/Products/Release-iphoneos/ 2>/dev/null || echo '(no Release-iphoneos dir)'
+            echo '--- app 内部 ---'
+            ls -la build/dd/Build/Products/Release-iphoneos/BattleReceiverOpen.app/ 2>/dev/null | head -40 || true
+            echo '--- app/web ---'
+            ls -la build/dd/Build/Products/Release-iphoneos/BattleReceiverOpen.app/web/ 2>/dev/null | head -20 || echo '(app 里没有 web/ 目录!)'
+            echo '--- dist ---'
+            ls -la dist/ 2>/dev/null || echo '(no dist dir)'
             echo '```'
           } > ci-failure.log
           wc -l ci-failure.log
@@ -152,6 +168,7 @@ jobs:
           path: |
             rust-build.log
             xcodebuild.log
+            package.log
             ci-failure.log
           if-no-files-found: ignore
           retention-days: 7

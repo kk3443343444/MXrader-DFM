@@ -55,8 +55,19 @@ def badge_state() -> str:
 
 
 def main() -> int:
-    start_sha = ci_logs_sha()
-    print(f'baseline ci-logs = {start_sha[:12] or "(none)"}')
+    # 基线必须取到非空值：网络抖动时 ls-remote 会返回空串，如果拿空串当基线，
+    # 下一次成功查询就会被误判成"ci-logs 变了"，于是读到的是上一轮的旧日志。
+    start_sha = ''
+    for attempt in range(20):
+        start_sha = ci_logs_sha()
+        if start_sha:
+            break
+        print(f'  基线查询失败（第 {attempt + 1} 次），5 秒后重试…')
+        time.sleep(5)
+    if not start_sha:
+        print('无法取得 ci-logs 基线（网络不通），退出')
+        return 1
+    print(f'baseline ci-logs = {start_sha[:12]}')
     deadline = time.time() + 1500
     last = None
     stable = 0
@@ -67,7 +78,7 @@ def main() -> int:
         if state != last:
             print(f'  {stamp} badge={state} ci-logs={now[:12] or "(none)"}')
         last = state
-        if now != start_sha:
+        if now and now != start_sha:
             print(f'\n*** 新失败：ci-logs 从 {start_sha[:12]} 变成 {now[:12]}，拉下来看日志 ***')
             # 远端每次失败都 force-push，所以 refspec 必须带前导 '+'（强制更新），
             # 否则本地已有的 ci-logs-watch ref 不是 fast-forward，git 会拒绝更新，
