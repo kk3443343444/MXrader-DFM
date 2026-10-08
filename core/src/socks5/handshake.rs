@@ -928,6 +928,18 @@ fn local_addr_of(client: &TcpStream, ctx: &HandlerCtx) -> SocketAddr {
     }
 }
 
+/// 把"通配地址"换成客户端能真正打到的本机地址，端口保持原样。
+///
+/// 只做端口/地址的替换，不碰别的：BND.PORT 必须是客户端真正该发的那个端口
+/// （同端口模式下是 SOCKS 端口，否则是临时端口），所以不能被覆盖。
+fn reachable_bnd_addr(client_facing: SocketAddr, fallback: SocketAddr) -> SocketAddr {
+    if client_facing.ip().is_unspecified() && !fallback.ip().is_unspecified() {
+        SocketAddr::new(fallback.ip(), client_facing.port())
+    } else {
+        client_facing
+    }
+}
+
 /// Dials the requested CONNECT target and answers with the matching reply code.
 async fn connect_upstream(
     ctx: &HandlerCtx,
@@ -1022,6 +1034,14 @@ async fn handle_udp_associate(
     } else {
         bound
     };
+
+    // BND.ADDR 绝不能是通配地址（0.0.0.0 / ::）。
+    // 很多 iOS 客户端（小火箭、Hiddify 等）**直接拿 BND.ADDR 当 UDP 发送目标**，
+    // 回 0.0.0.0 的话包会在客户端自己那台机器上打转，永远到不了本机 —— 真机症状是
+    // "代理连上了，但游戏一直提示网络异常"。这里换成"客户端这条 TCP 连接到达本机时的
+    // 地址"（本机局域网 IP + 同一端口），对"照抄 BND.ADDR"和"用连接时的服务器地址"
+    // 两类客户端都能正常工作。
+    let client_facing = reachable_bnd_addr(client_facing, local_addr_of(client, ctx));
 
     let assoc = relay::new_udp_association(session_id, peer, upstream_socket, bound, now_ms());
     if ctx.flags.separate_dual_stack {
@@ -1217,6 +1237,31 @@ mod tests {
         assert_eq!(&reply[4..8], &[192, 168, 1, 23]);
         assert_eq!(&reply[8..10], &2025u16.to_be_bytes());
         assert_eq!(reply.len(), 10);
+    }
+
+    /// 回归测试：UDP ASSOCIATE 的 BND.ADDR 不能是通配地址。
+    ///
+    /// 真机症状：B 机的游戏"连上了代理但一直网络异常"。原因是我们回的 BND.ADDR 是
+    /// 0.0.0.0（共享 UDP socket / 临时 socket 都绑在通配地址上），而 iOS 客户端会直接
+    /// 拿这个地址当 UDP 发送目标 → 包在 B 机自己身上打转，永远到不了接收器。
+    #[test]
+    fn bnd_addr_never_advertises_the_wildcard_address() {
+        let port = 2026u16;
+        let reachable: SocketAddr = "192.168.1.50:2025".parse().unwrap();
+
+        // 通配 → 换成本机可达地址，端口必须是"客户端该发的那个端口"
+        let fixed = reachable_bnd_addr(format!("0.0.0.0:{port}").parse().unwrap(), reachable);
+        assert_eq!(fixed, format!("192.168.1.50:{port}").parse::<SocketAddr>().unwrap());
+        let fixed6 = reachable_bnd_addr(format!("[::]:{port}").parse().unwrap(), reachable);
+        assert_eq!(fixed6, format!("192.168.1.50:{port}").parse::<SocketAddr>().unwrap());
+
+        // 已经是具体地址 → 原样返回，不做任何改写
+        let concrete: SocketAddr = "10.0.0.9:40000".parse().unwrap();
+        assert_eq!(reachable_bnd_addr(concrete, reachable), concrete);
+
+        // 连 fallback 都是通配（极端情况）→ 至少别 panic，保持原值
+        let both: SocketAddr = "0.0.0.0:2025".parse().unwrap();
+        assert_eq!(reachable_bnd_addr(both, both), both);
     }
 
     #[test]

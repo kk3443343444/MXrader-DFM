@@ -102,7 +102,8 @@ fn pick_port(cfg: &Config) -> Option<u16> {
 }
 
 /// 启动接收器。返回 status JSON。
-pub fn start_impl(config_json: &str) -> String {    crate::init_runtime();
+pub fn start_impl(config_json: &str) -> String {
+    crate::init_runtime();
 
     {
         let guard = slot().lock().unwrap_or_else(|e| e.into_inner());
@@ -456,6 +457,18 @@ pub extern "C" fn battle_proxy_free_string(p: *mut c_char) {
 mod tests {
     use super::*;
 
+    /// `ios_bridge` 用的是**进程级单例**（`RECEIVER`），所以任何真的去 start/stop
+    /// 接收器的测试都必须串行执行。否则一个测试的 start/stop 会把另一个测试正在跑的
+    /// 接收器关掉，症状是请求中途 `ConnectionReset`（"远程主机强迫关闭了一个现有的
+    /// 连接"）—— 这在 CI 上表现为随机失败，很难查。
+    ///
+    /// 只用于测试，不参与生产路径。
+    static SINGLETON_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn lock_singleton() -> std::sync::MutexGuard<'static, ()> {
+        SINGLETON_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     #[test]
     fn version_is_static_and_nul_terminated() {
         let p = battle_proxy_version();
@@ -484,6 +497,7 @@ mod tests {
 
     #[test]
     fn null_config_is_accepted() {
+        let _guard = lock_singleton();
         let p = battle_proxy_start(std::ptr::null());
         let s = unsafe { CStr::from_ptr(p) }.to_str().unwrap().to_string();
         battle_proxy_free_string(p);
@@ -529,10 +543,12 @@ mod tests {
     /// 要求拿到 200 + 页面内容。不启动真实转发流量，只走"绑定 → 上报 → 访问"这条链。
     #[test]
     fn radar_url_from_status_is_actually_served() {
+        // 与 null_config_is_accepted 等测试共享单例，必须串行（见 SINGLETON_LOCK）。
+        let _guard = lock_singleton();
         // 每次用一个独立端口区间，避免和本机上别的东西（或这个测试的重复运行）抢端口。
         // 注意配置的真实形状是 endpoint.ports.range（闭区间），不是顶层的 socks_port；
         // serde 对未知字段是"静默忽略"，所以写错名字不会报错、只会悄悄跑在默认区间上。
-        let base = 27000 + (std::process::id() % 200) as u16;
+        let base = 27400 + (std::process::id() % 100) as u16 * 8;
         // 数据目录指进工作区：这台开发机禁止子进程往 %TEMP% 写东西。
         let data_dir = crate::testutil::scratch_dir("ios-bridge-e2e");
         let cfg_json = format!(
@@ -569,15 +585,37 @@ mod tests {
             .trim_start_matches("http://")
             .split_once('/')
             .expect("radar_url 形状");
-        let mut stream = std::net::TcpStream::connect(host).unwrap_or_else(|e| {
-            panic!("按状态里的地址 {host} 连不上（这正是真机的症状）：{e}")
+        // 连接重试：accept 循环是在 runtime 里 spawn 的，刚返回时它可能还没被调度到。
+        let mut connected = None;
+        let mut last_err = String::new();
+        for _ in 0..40 {
+            match std::net::TcpStream::connect(host) {
+                Ok(s) => {
+                    connected = Some(s);
+                    break;
+                }
+                Err(e) => {
+                    last_err = e.to_string();
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+            }
+        }
+        let mut stream = connected.unwrap_or_else(|| {
+            panic!("按状态里的地址 {host} 连不上（这正是真机的症状）：{last_err}")
         });
+
         use std::io::{Read, Write};
+        // 读超时兜底：Connection: close 下服务端会收尾，但测试不该因为收尾慢就失败。
+        let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(3)));
         stream
             .write_all(format!("GET /{rest} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").as_bytes())
             .unwrap();
-        let mut response = String::new();
-        stream.read_to_string(&mut response).unwrap();
+        // 按字节读、有损解码，并把读超时/半关闭当作"读到这儿为止"：
+        // 页面是 UTF-8 中文，用 read_to_string 会在"截断在多字节字符中间"时报
+        // InvalidData —— 那是测试写法的问题，不是服务端的问题。
+        let mut raw = Vec::new();
+        let _ = stream.read_to_end(&mut raw);
+        let response = String::from_utf8_lossy(&raw).into_owned();
         assert!(
             response.starts_with("HTTP/1.1 200"),
             "雷达页没被服务：{}",
