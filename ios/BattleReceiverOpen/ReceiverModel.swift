@@ -127,11 +127,12 @@ final class ReceiverModel: ObservableObject {
     // MARK: - Private
 
     private let bridge = BattleBridge.shared
+    /// 监听 phase 变化以同步"是否禁止息屏"（见 init 里的说明）。
+    private var phaseSink: AnyCancellable?
     private let advertiser: BonjourAdvertiser
     private var healthTask: Task<Void, Never>?
     private var startTask: Task<Void, Never>?
     private var pendingStart: Task<ReceiverStatus, Error>?
-
     /// Total splash budget. The core promises `phase=running` within 5 s
     /// (INTERFACES.md 1), so exceeding it is reported as a stall.
     static let startupBudget: TimeInterval = 5.0
@@ -149,6 +150,21 @@ final class ReceiverModel: ObservableObject {
         self.appBuild = appBuild
         self.dataDirectory = dataDirectory
         self.advertiser = BonjourAdvertiser(brand: brand)
+        // 运行期间禁止自动息屏。
+        //
+        // 原因：Info.plist 没有 UIBackgroundModes（参考样本也一样），iOS 会挂起进入后台
+        // 的进程 —— 一挂起转发就全断，B 机游戏立刻"网络异常"。默认自动锁屏只有 30 秒，
+        // 而玩家必然要把注意力放在 B 机上，不锁屏这件事必须由代码保证。
+        phaseSink = $phase
+            .removeDuplicates()
+            .sink { newPhase in
+                // 用 Task 跳到主 actor：@Published 的 sink 虽然在主线程触发，
+                // 但闭包本身不是主 actor 隔离的，直接访问 UIApplication 会在
+                // Swift 6 严格并发下报错（Swift 5 只是警告，但这个写法两边都安全）。
+                Task { @MainActor in
+                    UIApplication.shared.isIdleTimerDisabled = (newPhase == .running)
+                }
+            }
         preflight()
     }
 
