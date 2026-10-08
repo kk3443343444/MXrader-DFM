@@ -124,14 +124,17 @@ cargo run --bin selftest -- --json   # 若加了 bin（当前用 C ABI 的 battl
 | `ios/BattleReceiverOpen/Resources/MXIcon*`、`MXMark`、`BattleMark` | ✅ 从样本复制 |
 | **Rust 核心：`cargo test`** | ✅ **222 passed / 0 failed**（Windows + MinGW/GNU 实测；默认并行、无需任何环境变量） |
 | 跨语言契约 / 结构健全性 / 前端 19 项断言 | ✅ `scripts/check_contract.py`、`check_sources.py`、`preview_selftest.py` 全绿 |
-| Swift 代码（13 文件 + C ABI 桥） | ⚠️ **从未在 macOS 上编译过** —— 只有 CI 能暴露类型错误 |
-| 可安装的 IPA | ⚠️ 需 GitHub Actions（见 docs/BUILD_IPA.md）或一台 Mac |
+| **iOS 构建（Rust staticlib + Swift + 链接 + 打包）** | ✅ **GitHub Actions 自动构建通过**，产物见 Releases（tag `ipa-latest`） |
+| **可安装的 IPA** | ✅ **已产出并验证**：6.16 MB，`Payload/BattleReceiverOpen.app/` 内含 4.5 MB arm64 主二进制（未加密、无 Frameworks —— 与样本同构）、`Info.plist`、`PkgInfo`、17 个图标、`web/` 前端全套。**尚未签名**，用 Sideloadly/AltStore 本地签名即可安装（见 docs/BUILD_IPA.md） |
 | 端到端（真机 + 真实对局） | ❌ 未验证：需要两台设备 + 校准 `ProtocolProfile`/`maps.json` |
 
 **校验中发现并修掉的真 bug（示例）**：`reqwest 0.13` 特性改名、物资 ID 超出 `u32`（11 位
 ID 全被静默丢弃）、`aarch64` 真机与模拟器切片无法 `lipo`、selftest 的 ChannelIndex 少写一位、
 `location_bits=20` 只能表示 ±52 m（运动 1.2 km 直接溢出）、`Capture::start` 两个句柄写同一个
-文件导致 `battle-parse-*.ndjson` 从不产生、激活页 POST 的路由与原始 HTML 不一致。
+文件导致 `battle-parse-*.ndjson` 从不产生、激活页 POST 的路由与原始 HTML 不一致、
+Swift 侧 `ScenePhase` 缺 import / `browserURL` 静态与实例混用 / `NSNetService` 改名为
+`NetService`、Xcode 工程缺 `LIBRARY_SEARCH_PATHS`（`ld: library 'battle_proxy' not found`）、
+打包脚本把相对输出路径带进临时目录（`zip: Could not create output file`）。
 
 **校准顺序**（拿到真实流量后）：`ProtocolProfile` → `RepMovementProfile` →
 `handles` 名字表 → `maps.json` 的 `origin/scale/yaw_offset_deg`。详见
