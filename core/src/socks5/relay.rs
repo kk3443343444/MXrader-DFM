@@ -47,7 +47,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::battle::BattleEngine;
 use crate::state::AppState;
@@ -93,6 +93,14 @@ pub struct UdpAssociation {
     pub id: u64,
     /// Client endpoint that owns this association.
     pub client_endpoint: SocketAddr,
+    /// 客户端 UDP 数据报的**实际**来源（学习值优先，否则退回 `client_endpoint`）。
+    ///
+    /// 为什么不能只用 `client_endpoint`：那是 TCP 控制连接的对端地址，而客户端发 UDP
+    /// 用的是另一个 socket（源端口必然不同），RFC 1928 还允许客户端在 ASSOCIATE 请求里
+    /// 填 0.0.0.0:0。按 IP:端口 严格比较会把**每一个数据报都丢掉**，而且回程也发到错的
+    /// 端口 —— 真机症状正是"代理连上了、游戏一直提示网络异常"。
+    /// 用第一个数据报的来源学习真实地址；`Arc` 保证学习结果对所有克隆可见。
+    learned_client: Arc<std::sync::Mutex<Option<SocketAddr>>>,
     /// Destination-facing socket.
     pub socket: Arc<UdpSocket>,
     /// Local address of `socket`.
@@ -123,6 +131,7 @@ impl Clone for UdpAssociation {
         Self {
             id: self.id,
             client_endpoint: self.client_endpoint,
+            learned_client: Arc::clone(&self.learned_client),
             socket: Arc::clone(&self.socket),
             bound: self.bound,
             created_ms: self.created_ms,
@@ -138,11 +147,28 @@ impl Clone for UdpAssociation {
 }
 
 impl UdpAssociation {
+    /// 回程要发往的客户端地址：以学习到的真实来源为准，没有就用关联创建时声明的地址。
+    pub fn effective_client_endpoint(&self) -> SocketAddr {
+        self.learned_client
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or(self.client_endpoint)
+    }
+
+    /// 记下第一个真正的客户端来源。返回 true 表示发生了学习（调用方可以打日志）。
+    pub fn learn_client_endpoint(&self, from: SocketAddr) -> bool {
+        let mut slot = self.learned_client.lock().unwrap_or_else(|e| e.into_inner());
+        if slot.is_none() {
+            *slot = Some(from);
+            return true;
+        }
+        false
+    }
+
     /// Bumps the activity stamp seen by the reaper.
     pub fn touch(&self, now: u64) {
         self.last_activity_ms.store(now, Ordering::Relaxed);
     }
-
     /// Milliseconds since the last activity.
     pub fn idle_ms(&self, now: u64) -> u64 {
         now.saturating_sub(self.last_activity_ms.load(Ordering::Relaxed))
@@ -216,6 +242,28 @@ impl Drop for UdpAssociation {
     }
 }
 
+/// 判断一个 UDP 读错误是不是"上一次发包引发的 ICMP 回报"，这类错误必须忽略。
+///
+/// 典型来源：把数据报发给一个没有监听者的 UDP 端口，对端回 ICMP port unreachable，
+/// 操作系统把它挂在 socket 上，下一次 `recv_from` 就返回错误。
+///   * Windows: `WSAECONNRESET (10054)` / `WSAENETRESET (10052)` / `WSAECONNABORTED (10053)`
+///   * Unix/macOS: `ECONNREFUSED` / `ECONNRESET`（仅 connected socket 会报）
+/// 若把它当作致命错误退出循环，这条关联就再也不会转发任何数据。
+fn is_benign_udp_error(err: &std::io::Error) -> bool {
+    use std::io::ErrorKind;
+    matches!(
+        err.kind(),
+        ErrorKind::ConnectionReset
+            | ErrorKind::ConnectionRefused
+            | ErrorKind::ConnectionAborted
+            | ErrorKind::NetworkUnreachable
+            | ErrorKind::HostUnreachable
+            | ErrorKind::TimedOut
+            | ErrorKind::WouldBlock
+            | ErrorKind::Interrupted
+    )
+}
+
 /// Builds a UDP association with a fresh per-association cancellation token.
 pub fn new_udp_association(
     id: u64,
@@ -232,6 +280,7 @@ pub fn new_udp_association(
     UdpAssociation {
         id,
         client_endpoint,
+        learned_client: Arc::new(std::sync::Mutex::new(None)),
         socket,
         bound,
         created_ms,
@@ -507,10 +556,24 @@ pub async fn relay_udp_with(
                             state.note_invalid_packet().await;
                             continue;
                         }
-                        if from != assoc.client_endpoint {
-                            // A stray sender on a per-association socket is not the client.
-                            trace!("UDP relay assoc {} ignoring datagram from {}", assoc.id, from);
-                            continue;
+                        let effective = assoc.effective_client_endpoint();
+                        if from != effective {
+                            // 客户端发 UDP 用的 socket 与 TCP 控制连接不是同一个（源端口不同），
+                            // RFC 1928 也允许它在请求里填 0.0.0.0:0。所以：同 IP、或客户端地址
+                            // 未指定时，接受并**学习**真实来源；只有明显是别人的包才丢。
+                            let same_ip = from.ip() == effective.ip();
+                            if !(same_ip || effective.ip().is_unspecified()) {
+                                trace!("UDP relay assoc {} ignoring datagram from {}", assoc.id, from);
+                                continue;
+                            }
+                            if assoc.learn_client_endpoint(from) {
+                                info!(
+                                    assoc = assoc.id,
+                                    learned = %from,
+                                    declared = %assoc.client_endpoint,
+                                    "UDP relay learned the client endpoint (回程将发往此处)"
+                                );
+                            }
                         }
                         let dest = match parse_udp_request(&client_buf[..len]) {
                             Ok(request) => request,
@@ -558,32 +621,42 @@ pub async fn relay_udp_with(
                             state.note_invalid_packet().await;
                             continue;
                         }
-                        if from == assoc.client_endpoint {
+                        let client = assoc.effective_client_endpoint();
+                        if from == client {
                             // The client's own datagram looped back: not a response.
                             trace!("UDP relay assoc {} saw client-origin datagram", assoc.id);
                             continue;
                         }
                         let framed = encode_udp_response(from, &upstream_buf[..len]);
                         assoc.touch(now_ms());
-                        match owner.send_to(&framed, assoc.client_endpoint).await {
+                        match owner.send_to(&framed, client).await {
                             Ok(written) => {
                                 assoc.add_bytes_down(len);
                                 state.note_udp_down(len).await;
                                 state.note_udp_relay(written).await;
                                 trace!(
                                     "] UDP response send_to {} (assoc {}, {} bytes)",
-                                    assoc.client_endpoint,
+                                    client,
                                     assoc.id,
                                     len
                                 );
                             }
                             Err(err) => {
-                                debug!("UDP response send_to {} failed: {}", assoc.client_endpoint, err);
+                                debug!("UDP response send_to {} failed: {}", client, err);
                                 state.note_tcp_relay_failure().await;
                             }
                         }
                     }
                     Err(err) => {
+                        // UDP 上的"连接被重置/拒绝"几乎都是**上一次发包**引发的 ICMP 端口
+                        // 不可达被操作系统回报上来（Windows 是 os error 10054）。这不是
+                        // 致命错误：把它当成"循环结束"会让这条关联**永久停止转发**
+                        // （客户端之后所有数据报都不会再被读取），真机表现就是游戏中途断网。
+                        // 正确做法是忽略它、继续读下一包。
+                        if is_benign_udp_error(&err) {
+                            trace!("UDP relay assoc {} upstream recv ignored benign error: {}", assoc.id, err);
+                            continue;
+                        }
                         debug!("UDP relay assoc {} upstream read failed: {}", assoc.id, err);
                         break;
                     }
