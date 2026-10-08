@@ -69,7 +69,11 @@ def main() -> int:
         last = state
         if now != start_sha:
             print(f'\n*** 新失败：ci-logs 从 {start_sha[:12]} 变成 {now[:12]}，拉下来看日志 ***')
-            r = sh(['git', 'fetch', '--depth', '1', REPO, 'ci-logs:refs/heads/ci-logs-watch'])
+            # 远端每次失败都 force-push，所以 refspec 必须带前导 '+'（强制更新），
+            # 否则本地已有的 ci-logs-watch ref 不是 fast-forward，git 会拒绝更新，
+            # 于是拿到的是**上一轮**的旧日志（这个坑踩过一次）。
+            r = sh(['git', 'fetch', '--depth', '1', '--force', REPO,
+                    '+refs/heads/ci-logs:refs/heads/ci-logs-watch'])
             print(r.stdout or r.stderr)
             r = sh(['git', 'show', 'refs/heads/ci-logs-watch:ci-failure.log'])
             text = r.stdout or r.stderr
