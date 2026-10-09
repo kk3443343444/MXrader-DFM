@@ -65,6 +65,8 @@
 
 pub mod handshake;
 pub mod relay;
+/// UDP socket 缓冲调优（SO_RCVBUF/SO_SNDBUF），见需求 3。
+pub mod tuning;
 
 pub use handshake::*;
 pub use relay::*;
@@ -127,6 +129,10 @@ pub struct TransportFlags {
     pub max_udp_associations: u32,
     /// `transport.socks5.udp_single_direction_burst` - per-datagram burst ceiling in bytes.
     pub udp_single_direction_burst: u32,
+    /// `transport.socks5.udp_socket_buffer_bytes` - SO_RCVBUF/SO_SNDBUF for every relay
+    /// socket (shared SOCKS-port socket + each per-association ephemeral socket).
+    /// 0 = 保留系统默认。
+    pub udp_socket_buffer_bytes: u32,
     /// `transport.udp_nat_mapping` for logs.
     pub nat_mapping_label: &'static str,
 }
@@ -141,8 +147,9 @@ impl Default for TransportFlags {
             udp_same_port: false,
             client_endpoint_isolated: true,
             separate_dual_stack: false,
-            max_udp_associations: 8,
+            max_udp_associations: 32,
             udp_single_direction_burst: 512 * 1024,
+            udp_socket_buffer_bytes: 1024 * 1024,
             nat_mapping_label: "per_client_endpoint_isolated",
         }
     }
@@ -177,8 +184,14 @@ impl TransportFlags {
             separate_dual_stack,
             max_udp_associations: socks5.udp_concurrent_associations.max(1),
             udp_single_direction_burst: socks5.udp_single_direction_burst.max(1024),
+            udp_socket_buffer_bytes: socks5.udp_socket_buffer_bytes,
             nat_mapping_label: nat_mapping,
         }
+    }
+
+    /// 中继 socket 的缓冲字节数（已夹到合理区间；0 = 不设置）。
+    pub fn udp_socket_buffer_bytes(&self) -> usize {
+        tuning::clamp_buffer_bytes(self.udp_socket_buffer_bytes as usize)
     }
 
     /// Largest accepted UDP payload (header included) for one datagram.
@@ -298,6 +311,14 @@ pub async fn run(state: AppState, engine: BattleEngine, cfg: Config) -> Result<S
             }
         };
 
+        // 需求 3：共享 SOCKS 端口那个 socket 也要大缓冲 —— `shared_port` 模式下客户端
+        // 所有 UDP 数据报都从它进来，缓冲一小就会在 demux loop 之前被内核丢包。
+        // 失败静默降级（只是回到系统默认值），绝不影响端口选择。
+        let wanted_buffer = tuning::clamp_buffer_bytes(cfg.transport.socks5.udp_socket_buffer_bytes as usize);
+        if let Some((recv, send)) = tuning::apply_udp_socket_buffers(&udp, wanted_buffer) {
+            debug!(port = *port, recv, send, "SOCKS5 UDP socket buffers tuned");
+        }
+
         let local = match tcp.local_addr() {
             Ok(addr) => addr,
             Err(err) => {
@@ -346,12 +367,14 @@ pub async fn run(state: AppState, engine: BattleEngine, cfg: Config) -> Result<S
     );
     info!("UDP ASSOCIATE on SOCKS port {}", port);
     info!(
-        "SOCKS5 endpoint armed: tcp_connect={} udp_associate={} relay_mode={} nat_mapping={} same_port={}",
+        "SOCKS5 endpoint armed: tcp_connect={} udp_associate={} relay_mode={} nat_mapping={} same_port={} max_udp_associations={} udp_socket_buffer={}B",
         flags.tcp_connect,
         flags.udp_associate,
         flags.udp_relay_mode,
         flags.nat_mapping_label,
-        flags.udp_same_port
+        flags.udp_same_port,
+        flags.max_udp_associations,
+        flags.udp_socket_buffer_bytes()
     );
 
     let tcp_ctx = ctx.clone();
@@ -560,6 +583,10 @@ async fn udp_demux_loop(
                 ctx.engine
                     .feed_dir(assoc.id, src, target_addr, &datagram, now_ms(), true);
 
+                // 目标地址统计（需求 2）：`shared_port` 模式下"客户端 → 服务器"的转发就发生在
+                // 这里（relay loop 那一支读的是同一个 socket，只处理回程），所以统计点必须在这里。
+                ctx.state.note_destination_addr(target_addr, now_ms());
+
                 ctx.state.note_udp_up(len).await;
 
                 // "先转发，后解析": the forwarding itself is off the receive path so a slow or
@@ -653,7 +680,23 @@ mod tests {
         assert!(!flags.separate_dual_stack);
         assert_eq!(flags.udp_relay_mode, "per_association_ephemeral");
         assert_eq!(flags.nat_mapping_label, "per_client_endpoint_isolated");
-        assert_eq!(flags.max_udp_associations, 8);
+        // 需求 3：并发上限从 8 提到 32（8 太容易被"游戏 + DNS + 其他 App"占满，
+        // 满了以后新的 UDP ASSOCIATE 会被拒绝 → 用户看到其他 App 断网）。
+        assert_eq!(flags.max_udp_associations, 32);
+        // 需求 3：中继 socket 的收发缓冲默认 1 MiB（内核拒绝时静默降级）。
+        assert_eq!(flags.udp_socket_buffer_bytes(), 1024 * 1024);
         assert!(flags.max_udp_datagram() >= 1024);
+    }
+
+    /// 配置里的缓冲值会经过夹取：0 表示"不设置"，过大/过小都收敛到合理区间。
+    #[test]
+    fn transport_flags_clamp_the_udp_socket_buffer() {
+        let mut flags = TransportFlags::default();
+        flags.udp_socket_buffer_bytes = 0;
+        assert_eq!(flags.udp_socket_buffer_bytes(), 0);
+        flags.udp_socket_buffer_bytes = 64;
+        assert_eq!(flags.udp_socket_buffer_bytes(), tuning::MIN_UDP_SOCKET_BUFFER_BYTES);
+        flags.udp_socket_buffer_bytes = u32::MAX;
+        assert_eq!(flags.udp_socket_buffer_bytes(), tuning::MAX_UDP_SOCKET_BUFFER_BYTES);
     }
 }

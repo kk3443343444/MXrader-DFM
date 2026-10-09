@@ -177,6 +177,10 @@
 
   var diag = {
     counters: null,
+    // 目标地址统计（Rust `state` 帧里的 destinations）：按 IP 聚合的 TCP CONNECT 目标
+    // 与 UDP 转发目标，用来让用户自己读出"游戏服务器 IP"并写分流规则。
+    destinations: [],
+    destinationsTotal: 0,
     msgCounts: { hello: 0, state: 0, diag: 0, bye: 0, other: 0 },
     frames: 0,
     fps: 0,
@@ -1200,6 +1204,20 @@
       ['渲染帧率', diag.fps ? diag.fps.toFixed(1) + ' fps' : '—'],
       ['最后错误', diag.lastError]
     ];
+
+    // 「目标地址」Top 10：写"只代理游戏"分流规则时要抄的就是这份 IP 清单。
+    // 每行 = IP · 包数；数据来自 Rust 的 state 帧（TCP CONNECT 目标 + UDP 转发目标，
+    // Rust 侧已按包数降序、内存有界，前端只负责显示）。
+    var dests = diag.destinations || [];
+    if (dests.length) {
+      rows.push(['目标地址（Top ' + dests.length + '）', String(num(diag.destinationsTotal, 0)) + ' 次命中']);
+      for (var di = 0; di < dests.length; di++) {
+        var d = dests[di] || {};
+        rows.push(['　' + (di + 1) + '. ' + String(d.ip || '—'), String(num(d.packets, 0)) + ' 包']);
+      }
+    } else {
+      rows.push(['目标地址', '暂无（还没有 TCP CONNECT / UDP 目标）']);
+    }
     var frag = document.createDocumentFragment();
     rows.forEach(function (r) {
       var tr = document.createElement('tr');
@@ -1437,6 +1455,15 @@
     diag.msgCounts.state++;
     state.tick = num(msg.tick, state.tick);
     state.serverTs = num(msg.ts, state.serverTs);
+
+    // 目标地址 Top 10（Rust 侧已经按包数降序 + 有界内存算好，这里只存不加工）。
+    if (Array.isArray(msg.destinations)) {
+      diag.destinations = msg.destinations.slice(0, 10);
+      diag.destinationsTotal = num(msg.destinations_total, diag.destinationsTotal);
+    } else if (typeof msg.destinations_total === 'number') {
+      diag.destinationsTotal = num(msg.destinations_total, diag.destinationsTotal);
+    }
+
     if (msg.read_only_radar != null) applyReadOnly(!!msg.read_only_radar);
 
     if (msg.self && typeof msg.self === 'object') {

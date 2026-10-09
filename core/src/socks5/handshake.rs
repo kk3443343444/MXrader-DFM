@@ -58,7 +58,7 @@ use crate::battle::BattleEngine;
 use crate::state::AppState;
 
 use super::relay::{self, UdpAssociation};
-use super::{now_ms, HandlerCtx};
+use super::{now_ms, tuning, HandlerCtx};
 
 // ---------------------------------------------------------------------------------------------
 // Protocol constants
@@ -962,6 +962,10 @@ async fn connect_upstream(
             if let Err(err) = stream.set_nodelay(true) {
                 trace!("CONNECT upstream set_nodelay failed: {}", err);
             }
+            // 目标地址统计（需求 2）：分流规则要的"游戏服务器 IP"就是这里的 CONNECT 目标。
+            // 只统计**成功**建立的连接 —— 失败的目标（DNS 污染、探测、被拒的端口）不该
+            // 出现在用户抄进分流规则的那张表里。
+            ctx.state.note_destination_addr(resolved, now_ms());
             let bound = stream.local_addr().unwrap_or(reply_addr);
             send_reply(client, REP_SUCCEEDED, bound).await?;
             Ok(RequestOutcome::Connected(stream))
@@ -1005,8 +1009,10 @@ async fn handle_udp_associate(
 
     // Upstream (destination-facing) socket. `per_association_ephemeral` spawns one per
     // association; any other mode shares the SOCKS-port socket through the same abstraction.
+    // 需求 3：临时 socket 的收发缓冲跟着配置走（共享模式那条路径的缓冲在 socks5::run
+    // 里对共享 socket 设置一次即可）。
     let upstream_socket = if ctx.flags.per_association_ephemeral {
-        match bind_udp_like(&ctx.shared_udp).await {
+        match bind_udp_like(&ctx.shared_udp, ctx.flags.udp_socket_buffer_bytes()).await {
             Ok(sock) => Arc::new(sock),
             Err(err) => {
                 warn!("UDP ASSOCIATE could not open an ephemeral socket: {}", err);
@@ -1137,7 +1143,11 @@ async fn handle_udp_associate(
 }
 
 /// Opens a UDP socket mirroring the address family of a reference socket.
-pub(crate) async fn bind_udp_like(reference: &UdpSocket) -> Result<UdpSocket> {
+///
+/// `buffer_bytes` 是需求 3 的收发缓冲（`transport.socks5.udp_socket_buffer_bytes`）：
+/// 每个关联一个临时 socket，默认几十 KB 的缓冲在并发流多时会被内核静默丢包
+/// （症状：DNS 解析超时、其他 App 卡到断网）。设置失败静默降级，不影响关联建立。
+pub(crate) async fn bind_udp_like(reference: &UdpSocket, buffer_bytes: usize) -> Result<UdpSocket> {
     let local = reference
         .local_addr()
         .map_err(|err| anyhow!("reading reference UDP address: {err}"))?;
@@ -1147,9 +1157,15 @@ pub(crate) async fn bind_udp_like(reference: &UdpSocket) -> Result<UdpSocket> {
         SocketAddr::V6(_) => SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
     };
 
-    UdpSocket::bind(bind_addr)
+    let socket = UdpSocket::bind(bind_addr)
         .await
-        .map_err(|err| anyhow!("binding ephemeral UDP socket on {bind_addr}: {err}"))
+        .map_err(|err| anyhow!("binding ephemeral UDP socket on {bind_addr}: {err}"))?;
+
+    if let Some((recv, send)) = tuning::apply_udp_socket_buffers(&socket, buffer_bytes) {
+        debug!(recv, send, "per-association UDP socket buffers tuned");
+    }
+
+    Ok(socket)
 }
 
 /// Number of outbound (destination-facing) UDP sockets currently opened by the table.

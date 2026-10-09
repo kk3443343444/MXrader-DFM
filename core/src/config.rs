@@ -95,8 +95,23 @@ pub struct Socks5TransportConfig {
     /// 单方向突发上限（字节），超过则丢弃并计数，避免大包堆积。
     #[serde(default = "default_udp_burst")]
     pub udp_single_direction_burst: u32,
+    /// 同时存活的 UDP 关联上限。
+    ///
+    /// 为什么默认从 8 提到 32：这是一个**全局**上限（跨所有客户端），而一个手机上的
+    /// 代理不只跑游戏 —— DNS、微信、系统服务都会各自建一条 UDP 关联。8 很容易被占满，
+    /// 满了以后新的 ASSOCIATE 会被直接拒绝（REP_GENERAL_FAILURE），用户看到的就是
+    /// "其他 App 断网"。32 条足够覆盖"游戏 + DNS + 若干 App"，且每关联一个 socket 的
+    /// 开销仍然有界（见 `udp_socket_buffer_bytes`）。
     #[serde(default = "default_udp_concurrent")]
     pub udp_concurrent_associations: u32,
+    /// 中继 UDP socket 的收发缓冲（字节，SO_RCVBUF/SO_SNDBUF）。
+    ///
+    /// 并发 UDP 流多时，默认的几十 KB 缓冲一满内核就直接丢包，表现是 DNS 解析超时、
+    /// 其他 App 卡到断网（而我们这边只是"recv 没有数据"，完全看不到丢包）。
+    /// 1 MiB 是 iOS 上通常能拿到的量级；内核拒绝时静默降级为默认值，见
+    /// `crate::socks5::tuning`。0 = 不设置（保留系统默认）。
+    #[serde(default = "default_udp_socket_buffer")]
+    pub udp_socket_buffer_bytes: u32,
     #[serde(default = "default_udp_relay_mode")]
     pub udp_relay_mode: UdpRelayMode,
 }
@@ -108,7 +123,10 @@ fn default_udp_burst() -> u32 {
     512 * 1024
 }
 fn default_udp_concurrent() -> u32 {
-    8
+    32
+}
+fn default_udp_socket_buffer() -> u32 {
+    1024 * 1024
 }
 fn default_udp_relay_mode() -> UdpRelayMode {
     UdpRelayMode::PerAssociationEphemeral
@@ -122,6 +140,7 @@ impl Default for Socks5TransportConfig {
             udp_same_port: false,
             udp_single_direction_burst: default_udp_burst(),
             udp_concurrent_associations: default_udp_concurrent(),
+            udp_socket_buffer_bytes: default_udp_socket_buffer(),
             udp_relay_mode: default_udp_relay_mode(),
         }
     }
@@ -338,6 +357,28 @@ mod tests {
         assert_eq!(c.endpoint.ports.range, [2025, 2045]);
         assert!(c.read_only_radar && c.parser_async);
         assert_eq!(c.brand, "mx");
+    }
+
+    /// 需求 3 的性能默认值：并发 UDP 关联上限与中继 socket 缓冲。
+    ///
+    /// 这两个数都是"用户能感知"的：上限太小 → 新的 UDP 关联被拒绝（其他 App 断网）；
+    /// 缓冲太小 → 内核静默丢包（DNS 解析超时）。改它们之前请先读字段上的注释。
+    #[test]
+    fn udp_performance_defaults_are_sane() {
+        let c = Config::default();
+        assert_eq!(c.transport.socks5.udp_concurrent_associations, 32);
+        assert_eq!(c.transport.socks5.udp_socket_buffer_bytes, 1024 * 1024);
+        assert_eq!(
+            c.transport.socks5.udp_relay_mode,
+            UdpRelayMode::PerAssociationEphemeral,
+            "relay 模式语义不变：默认仍是每个关联一个临时 socket"
+        );
+
+        // 缺失该键的老配置也要有默认值（Swift 侧目前不显式传这两个键）。
+        let raw = r#"{"transport":{"socks5":{"udp_associate":true}}}"#;
+        let parsed = Config::from_json_str(raw).unwrap();
+        assert_eq!(parsed.transport.socks5.udp_concurrent_associations, 32);
+        assert_eq!(parsed.transport.socks5.udp_socket_buffer_bytes, 1024 * 1024);
     }
 
     #[test]

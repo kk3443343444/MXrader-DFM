@@ -44,6 +44,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 构建版本戳（需求 1）：一次构建的唯一标识，必须同时出现在
+      #   1) IPA 资产名            BattleReceiverOpen-2.3.7-<sha7>-r<run>-unsigned.ipa
+      #   2) app 的 Info.plist     CFBundleShortVersionString=2.3.7-<sha7> / CFBundleVersion=<run>
+      #   3) Rust 状态 JSON        version="2.3.7-<sha7> (<run>)"（build.rs 注入，见 core/build.rs）
+      # 三条都从这里的 $GITHUB_ENV 派生，所以不可能各写各的。
+      # 注意：dev 机上 CFBundleVersion 一直是 32、看不出装的是哪一版，正是这次要修的痛点。
+      - name: Compute build stamp
+        run: |
+          set -euo pipefail
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          RUN_NUMBER="${{ github.run_number }}"
+          MARKETING_VERSION="2.3.7-${SHORT_SHA}"
+          BUILD_STAMP="${MARKETING_VERSION} (${RUN_NUMBER})"
+          IPA_NAME="BattleReceiverOpen-${MARKETING_VERSION}-r${RUN_NUMBER}-unsigned.ipa"
+          {
+            echo "SHORT_SHA=${SHORT_SHA}"
+            echo "RUN_NUMBER=${RUN_NUMBER}"
+            echo "BATTLE_SHORT_SHA=${SHORT_SHA}"
+            echo "BATTLE_MARKETING_VERSION=${MARKETING_VERSION}"
+            echo "BATTLE_BUILD_NUMBER=${RUN_NUMBER}"
+            echo "BATTLE_BUILD_STAMP=${BUILD_STAMP}"
+            echo "BATTLE_IPA_NAME=${IPA_NAME}"
+          } >> "$GITHUB_ENV"
+          echo "构建版本戳：${BUILD_STAMP}"
+          echo "IPA 资产名：${IPA_NAME}"
+
       - name: Rust toolchain + iOS target
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,6 +92,9 @@ jobs:
 
       - name: Build Rust static library (device arm64)
         # pipefail 保证 cargo 失败不会被 tee 的成功掩盖
+        # BATTLE_BUILD_STAMP 来自上一步写入 $GITHUB_ENV 的构建戳：build.rs 会把它变成
+        # crate::VERSION（状态 JSON 的 version 字段），CI 日志里也能看到
+        # "battle_proxy build stamp: ..." 这行 warning。
         run: |
           set -o pipefail
           ./scripts/build_rust.sh --device-only 2>&1 | tee rust-build.log
@@ -78,6 +107,10 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          # MARKETING_VERSION / CURRENT_PROJECT_VERSION 覆盖 ios/project.yml 里的
+          # 2.3.7 / 32：启动页显示的就是这两个（BattleSplashView 的 v\(version) (\(build))）。
+          # 这两个变量同时也跟着 xcodebuild 的进程环境传给 project.yml 的 pre-build
+          # script，所以它内部那次 build_rust.sh 看到的戳完全一致（不会二次重编出别的戳）。
           xcodebuild \
             -project BattleReceiverOpen.xcodeproj \
             -scheme BattleReceiverOpen \
@@ -88,15 +121,46 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
+            CURRENT_PROJECT_VERSION="$RUN_NUMBER" \
+            MARKETING_VERSION="$BATTLE_MARKETING_VERSION" \
             ONLY_ACTIVE_ARCH=NO \
             build 2>&1 | tee ../xcodebuild.log
 
       - name: Assemble unsigned IPA
+        # 资产名带上构建戳（需求 1），Release 的 tag 仍然是固定的 ipa-latest。
         run: |
           set -o pipefail
           APP="build/dd/Build/Products/Release-iphoneos/BattleReceiverOpen.app"
           ls -la "$(dirname "$APP")"
-          ./scripts/make_unsigned_ipa.sh "$APP" "dist/BattleReceiverOpen-mxrader-r39-unsigned.ipa" 2>&1 | tee package.log
+          ./scripts/make_unsigned_ipa.sh "$APP" "dist/${BATTLE_IPA_NAME}" 2>&1 | tee package.log
+
+      # 三处互相印证的机器校验：任何一处对不上就让构建直接红在这一步，
+      # 免得又出现"装的是哪一版看不出来"的误判。
+      - name: Verify build stamp (IPA name / Info.plist / Rust static lib)
+        run: |
+          set -euo pipefail
+          APP="build/dd/Build/Products/Release-iphoneos/BattleReceiverOpen.app"
+          STATICLIB="core/target/ios/libbattle_proxy.a"
+
+          echo "== 1/3 IPA 资产名 =="
+          test -f "dist/${BATTLE_IPA_NAME}" || { echo "::error::IPA 资产名不是 dist/${BATTLE_IPA_NAME}"; ls -la dist/; exit 1; }
+          ls -la "dist/${BATTLE_IPA_NAME}"
+
+          echo "== 2/3 Info.plist（启动页读的就是这两个键）=="
+          PLIST_SHORT="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
+          PLIST_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
+          echo "CFBundleShortVersionString=${PLIST_SHORT}  CFBundleVersion=${PLIST_BUILD}"
+          test "$PLIST_SHORT" = "$BATTLE_MARKETING_VERSION" || { echo "::error::CFBundleShortVersionString=${PLIST_SHORT} != ${BATTLE_MARKETING_VERSION}"; exit 1; }
+          test "$PLIST_BUILD" = "$RUN_NUMBER" || { echo "::error::CFBundleVersion=${PLIST_BUILD} != ${RUN_NUMBER}"; exit 1; }
+
+          echo "== 3/3 Rust 静态库里的状态 JSON 版本串 =="
+          if LC_ALL=C grep -aqF "$BATTLE_BUILD_STAMP" "$STATICLIB"; then
+            echo "静态库里含构建戳：${BATTLE_BUILD_STAMP}"
+          else
+            echo "::error::${STATICLIB} 里找不到构建戳 '${BATTLE_BUILD_STAMP}'（很可能是 cargo 复用了旧 target 缓存；core/build.rs 已声明 rerun-if-env-changed）"
+            exit 1
+          fi
+          echo "三处构建戳一致：${BATTLE_BUILD_STAMP}"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -116,13 +180,25 @@ jobs:
           tag_name: ipa-latest
           name: MXrader unsigned IPA (latest)
           body: |
-            由 CI 自动构建的**未签名** IPA，源码提交 `${{ github.sha }}`。
+            由 CI 自动构建的**未签名** IPA。
+
+            | 项 | 值 |
+            |---|---|
+            | 构建戳 | `${{ env.BATTLE_BUILD_STAMP }}` |
+            | 资产名 | `${{ env.BATTLE_IPA_NAME }}` |
+            | 源码提交 | `${{ github.sha }}` |
+            | run | `${{ github.run_number }}` |
+
+            装到手机后如何核对装的是哪一版：启动页上的 `vX (Y)` 与
+            诊断页顶部的「构建」应等于上表的构建戳；状态 JSON 的 `version`
+            字段也是同一个串（三处由同一次构建注入，见 core/build.rs）。
 
             安装：用 Sideloadly / AltStore 载入本文件，填你自己的 Apple ID 签名后安装
             （免签需越狱设备 + TrollStore）。详见仓库 docs/BUILD_IPA.md。
 
             校验：`Payload/BattleReceiverOpen.app/` 下应含 `BattleReceiverOpen`、
-            `Info.plist`、`PkgInfo` 与 `web/` 目录。
+            `Info.plist`、`PkgInfo` 与 `web/` 目录；`Info.plist` 的
+            `CFBundleShortVersionString` / `CFBundleVersion` 应等于构建戳的两半。
           files: dist/*.ipa
           make_latest: true
           fail_on_unmatched_files: true

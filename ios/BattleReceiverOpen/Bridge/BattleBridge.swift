@@ -116,6 +116,37 @@ struct RuntimeStatus: Codable, Equatable, Sendable {
     static let unknown = RuntimeStatus()
 }
 
+/// 状态 JSON 里 `destinations` 的一条：目标 IP 的命中统计。
+///
+/// 这就是用户在诊断页里抄出来写"只代理游戏"分流规则的东西（Rust 侧 `crate::census`，
+/// 按 IP 聚合 TCP CONNECT 目标 + UDP 转发的每个 dest，有界 128 条）。
+/// 全部字段都用 `decodeIfPresent`：Rust 侧将来加字段或做字段改名时，这里只会退回默认值，
+/// 不会让整个状态解码失败（`BattleBridge.status()` 解码失败会让健康轮询静默丢一帧）。
+struct DestinationStat: Codable, Equatable, Sendable {
+    var ip: String
+    var packets: Int
+    var lastMs: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case ip
+        case packets
+        case lastMs = "last_ms"
+    }
+
+    init(ip: String = "—", packets: Int = 0, lastMs: Int? = nil) {
+        self.ip = ip
+        self.packets = packets
+        self.lastMs = lastMs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ip = try container.decodeIfPresent(String.self, forKey: .ip) ?? "—"
+        packets = try container.decodeIfPresent(Int.self, forKey: .packets) ?? 0
+        lastMs = try container.decodeIfPresent(Int.self, forKey: .lastMs)
+    }
+}
+
 /// Full status snapshot, decoded from the JSON produced by the C ABI.
 /// Counters are top level in INTERFACES.md 3, hence the `decodeIfPresent` +
 /// `decodeCounters` fallback (older builds nested them under `counters`).
@@ -138,12 +169,16 @@ struct ReceiverStatus: Codable, Equatable, Sendable {
     var udpInvalidPackets: Int
     var tcpRelayFailures: Int
     var lootPayloadsSkipped: Int
+    /// 目标地址统计（Rust `census`）：按包数降序，最多 32 条。
+    var destinations: [DestinationStat]
+    /// 见过的目标命中总量（含已被淘汰的目标）。
+    var destinationsTotal: Int
 
     var lastHealthCheck: Date?
     var error: String?
 
     enum CodingKeys: String, CodingKey {
-        case phase, mode, version, endpoint, error
+        case phase, mode, version, endpoint, error, destinations
         case socksPort = "socks_port"
         case webPort = "web_port"
         case primaryPort = "primary_port"
@@ -157,6 +192,7 @@ struct ReceiverStatus: Codable, Equatable, Sendable {
         case udpInvalidPackets = "udp_invalid_packets"
         case tcpRelayFailures = "tcp_relay_failures"
         case lootPayloadsSkipped = "loot_payloads_skipped"
+        case destinationsTotal = "destinations_total"
         case counters
         case lastHealthCheck = "last_health_check"
     }
@@ -200,6 +236,8 @@ struct ReceiverStatus: Codable, Equatable, Sendable {
         udpInvalidPackets: Int = 0,
         tcpRelayFailures: Int = 0,
         lootPayloadsSkipped: Int = 0,
+        destinations: [DestinationStat] = [],
+        destinationsTotal: Int = 0,
         lastHealthCheck: Date? = nil,
         error: String? = nil
     ) {
@@ -220,6 +258,8 @@ struct ReceiverStatus: Codable, Equatable, Sendable {
         self.udpInvalidPackets = udpInvalidPackets
         self.tcpRelayFailures = tcpRelayFailures
         self.lootPayloadsSkipped = lootPayloadsSkipped
+        self.destinations = destinations
+        self.destinationsTotal = destinationsTotal
         self.lastHealthCheck = lastHealthCheck
         self.error = error
     }
@@ -245,6 +285,9 @@ struct ReceiverStatus: Codable, Equatable, Sendable {
         udpInvalidPackets = try container.decodeIfPresent(Int.self, forKey: .udpInvalidPackets) ?? legacy?.udpInvalidPackets ?? 0
         tcpRelayFailures = try container.decodeIfPresent(Int.self, forKey: .tcpRelayFailures) ?? legacy?.tcpRelayFailures ?? 0
         lootPayloadsSkipped = try container.decodeIfPresent(Int.self, forKey: .lootPayloadsSkipped) ?? legacy?.lootPayloadsSkipped ?? 0
+        // 目标地址统计：字段缺失（老版本核心）或元素字段缺失都不该让整份状态解码失败。
+        destinations = try container.decodeIfPresent([DestinationStat].self, forKey: .destinations) ?? []
+        destinationsTotal = try container.decodeIfPresent(Int.self, forKey: .destinationsTotal) ?? 0
 
         lastHealthCheck = BattleBridge.decodeTimestamp(try container.decodeIfPresent(String.self, forKey: .lastHealthCheck))
         error = try container.decodeIfPresent(String.self, forKey: .error)
@@ -269,6 +312,9 @@ struct ReceiverStatus: Codable, Equatable, Sendable {
         try container.encode(udpInvalidPackets, forKey: .udpInvalidPackets)
         try container.encode(tcpRelayFailures, forKey: .tcpRelayFailures)
         try container.encode(lootPayloadsSkipped, forKey: .lootPayloadsSkipped)
+        // 诊断页的「目标地址」块（以及诊断页那份 pretty JSON）读的就是这两个键。
+        try container.encode(destinations, forKey: .destinations)
+        try container.encode(destinationsTotal, forKey: .destinationsTotal)
         if let lastHealthCheck {
             try container.encode(BattleBridge.timestampFormatter.string(from: lastHealthCheck), forKey: .lastHealthCheck)
         }

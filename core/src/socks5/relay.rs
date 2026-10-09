@@ -674,6 +674,11 @@ pub async fn relay_udp_with(
                         };
                         assoc.touch(now_ms());
 
+                        // 目标地址统计（需求 2）：这一支就是 `per_association_ephemeral`
+                        // 下"客户端 → 真实服务器"的方向，`target` 正是分流规则要的地址。
+                        // 同步方法 + 无分配，热路径上可以放心每包调用。
+                        state.note_destination_addr(target, now_ms());
+
                         let datagram = Bytes::copy_from_slice(&client_buf[..len]);
                         engine.feed_dir(assoc.id, from, target, &datagram, now_ms(), true);
 
@@ -726,6 +731,11 @@ pub async fn relay_udp_with(
                         // "udp 包数在涨、total_pages 只有 1、positioned_total 0、players 空、
                         // self 为空" —— 包收到了，但解析器从没见过复制流。
                         // 两个方向都必须喂，解析器才能把一趟完整复制流拼起来。
+                        //
+                        // 这一支同时也补上目标地址统计：在 `shared_port` 模式下客户端→服务器
+                        // 的数据报由 `socks5::mod` 的 demux loop 转发（见那边的统计点），这里
+                        // 只会看到**服务器→客户端**的包，`from` 就是真实游戏服务器的 IP。
+                        state.note_destination_addr(from, now_ms());
                         let upstream_datagram = Bytes::copy_from_slice(&upstream_buf[..len]);
                         engine.feed_dir(assoc.id, from, client, &upstream_datagram, now_ms(), false);
                         send_upstream_datagram_to_client(

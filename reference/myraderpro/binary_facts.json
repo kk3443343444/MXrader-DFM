@@ -1,0 +1,367 @@
+{
+ "sample": "MyRader6Pro.ipa",
+ "app_bundle": "Payload/MyRaderPro.app",
+ "executable": "DeltaRadarIOS",
+ "bundle_id": "com.deltaradar.pro",
+ "display_name": "MyRader Pro",
+ "short_version": "5.1.58",
+ "build_version": "5158",
+ "minimum_os": "16.0",
+ "sdk": "iphoneos26.5",
+ "xcode": "2660 (Xcode 26.6)",
+ "files_in_ipa": [
+  "AppIcon60x60@2x.png (14571)",
+  "AppIcon76x76@2x~ipad.png (20909)",
+  "Assets.car (102712)",
+  "DeltaRadarIOS (2624688)",
+  "Info.plist (1533)",
+  "PkgInfo (8)"
+ ],
+ "macho": {
+  "cputype": 16777228,
+  "ftype": 2,
+  "ncmds": 54,
+  "sizeofcmds": 6656,
+  "flags": "0x00a18085"
+ },
+ "dylibs": [
+  "/usr/lib/libc++.1.dylib",
+  "/usr/lib/libz.1.dylib",
+  "/System/Library/Frameworks/Security.framework/Security",
+  "/System/Library/Frameworks/SystemConfiguration.framework/SystemConfiguration",
+  "/System/Library/Frameworks/Foundation.framework/Foundation",
+  "/usr/lib/libobjc.A.dylib",
+  "/usr/lib/libSystem.B.dylib",
+  "/System/Library/Frameworks/AVFAudio.framework/AVFAudio",
+  "/System/Library/Frameworks/Combine.framework/Combine",
+  "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+  "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+  "/System/Library/Frameworks/CoreImage.framework/CoreImage",
+  "/System/Library/Frameworks/SwiftUI.framework/SwiftUI",
+  "/System/Library/Frameworks/UIKit.framework/UIKit",
+  "/System/Library/Frameworks/WebKit.framework/WebKit",
+  "/usr/lib/swift/libswiftAVFoundation.dylib",
+  "/usr/lib/swift/libswiftCore.dylib",
+  "/usr/lib/swift/libswiftCoreAudio.dylib",
+  "/usr/lib/swift/libswiftCoreFoundation.dylib",
+  "/usr/lib/swift/libswiftCoreImage.dylib",
+  "/usr/lib/swift/libswiftCoreMIDI.dylib",
+  "/usr/lib/swift/libswiftCoreMedia.dylib",
+  "/usr/lib/swift/libswiftDarwin.dylib",
+  "/usr/lib/swift/libswiftDispatch.dylib",
+  "/usr/lib/swift/libswiftMetal.dylib",
+  "/usr/lib/swift/libswiftOSLog.dylib",
+  "/usr/lib/swift/libswiftObjectiveC.dylib",
+  "/usr/lib/swift/libswiftQuartzCore.dylib",
+  "/usr/lib/swift/libswiftSpatial.dylib",
+  "/usr/lib/swift/libswiftUniformTypeIdentifiers.dylib",
+  "/usr/lib/swift/libswiftXPC.dylib",
+  "/usr/lib/swift/libswift_Concurrency.dylib",
+  "/usr/lib/swift/libswiftos.dylib",
+  "/usr/lib/swift/libswiftsimd.dylib",
+  "/usr/lib/swift/libswiftUIKit.dylib"
+ ],
+ "rpaths": [
+  "/usr/lib/swift",
+  "@executable_path/Frameworks"
+ ],
+ "nsyms": 933,
+ "strings_per_section": {
+  "__const": 4,
+  "__swift5_typeref": 1783,
+  "__objc_classname": 14,
+  "__objc_methname": 228,
+  "__objc_methtype": 76,
+  "__swift5_reflstr": 125,
+  "__swift5_fieldmd": 0,
+  "__cstring": 606
+ },
+ "sections": [
+  {
+   "seg": "__TEXT",
+   "sect": "__text",
+   "size": 1704792,
+   "offset": 16384
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__stubs",
+   "size": 6684,
+   "offset": 1721176
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__objc_stubs",
+   "size": 2720,
+   "offset": 1727872
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__objc_methlist",
+   "size": 1668,
+   "offset": 1730592
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__const",
+   "size": 362160,
+   "offset": 1732608
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__constg_swiftt",
+   "size": 2244,
+   "offset": 2094768
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_typeref",
+   "size": 53666,
+   "offset": 2097012
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__objc_classname",
+   "size": 573,
+   "offset": 2150688
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__objc_methname",
+   "size": 6533,
+   "offset": 2151264
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__objc_methtype",
+   "size": 3807,
+   "offset": 2157808
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_reflstr",
+   "size": 1916,
+   "offset": 2161616
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_fieldmd",
+   "size": 3068,
+   "offset": 2163532
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_capture",
+   "size": 1404,
+   "offset": 2166600
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_types",
+   "size": 176,
+   "offset": 2168004
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift_as_entry",
+   "size": 160,
+   "offset": 2168180
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_assocty",
+   "size": 344,
+   "offset": 2168340
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__cstring",
+   "size": 36238,
+   "offset": 2168688
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_proto",
+   "size": 400,
+   "offset": 2204928
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift_as_ret",
+   "size": 224,
+   "offset": 2205328
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_entry",
+   "size": 8,
+   "offset": 2205552
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_builtin",
+   "size": 20,
+   "offset": 2205560
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_mpenum",
+   "size": 8,
+   "offset": 2205580
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__swift5_protos",
+   "size": 4,
+   "offset": 2205588
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__gcc_except_tab",
+   "size": 4872,
+   "offset": 2205592
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__unwind_info",
+   "size": 14904,
+   "offset": 2210464
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__eh_frame",
+   "size": 43784,
+   "offset": 2225368
+  },
+  {
+   "seg": "__TEXT",
+   "sect": "__oslogstring",
+   "size": 133,
+   "offset": 2277376
+  },
+  {
+   "seg": "__DATA_CONST",
+   "sect": "__got",
+   "size": 6608,
+   "offset": 2293760
+  },
+  {
+   "seg": "__DATA_CONST",
+   "sect": "__const",
+   "size": 79352,
+   "offset": 2300368
+  },
+  {
+   "seg": "__DATA_CONST",
+   "sect": "__objc_classlist",
+   "size": 56,
+   "offset": 2379720
+  },
+  {
+   "seg": "__DATA_CONST",
+   "sect": "__objc_protolist",
+   "size": 48,
+   "offset": 2379776
+  },
+  {
+   "seg": "__DATA_CONST",
+   "sect": "__objc_imageinfo",
+   "size": 8,
+   "offset": 2379824
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__objc_const",
+   "size": 4432,
+   "offset": 2392064
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__objc_selrefs",
+   "size": 1312,
+   "offset": 2396496
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__objc_protorefs",
+   "size": 48,
+   "offset": 2397808
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__objc_classrefs",
+   "size": 208,
+   "offset": 2397856
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__objc_data",
+   "size": 856,
+   "offset": 2398064
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__data",
+   "size": 9704,
+   "offset": 2398920
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__thread_vars",
+   "size": 312,
+   "offset": 2408624
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__thread_data",
+   "size": 112,
+   "offset": 2408936
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__thread_bss",
+   "size": 448,
+   "offset": 0
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__bss",
+   "size": 13616,
+   "offset": 0
+  },
+  {
+   "seg": "__DATA",
+   "sect": "__common",
+   "size": 96,
+   "offset": 0
+  }
+ ],
+ "uuid": "4509E432D17C3F55855B2C4B8CC6B5F2",
+ "encryption": "no LC_ENCRYPTION_INFO (decrypted / static analysable)",
+ "info_plist_keys": {
+  "CFBundleIdentifier": "com.deltaradar.pro",
+  "CFBundleExecutable": "DeltaRadarIOS",
+  "CFBundleDisplayName": "MyRader Pro",
+  "CFBundleShortVersionString": "5.1.58",
+  "CFBundleVersion": "5158",
+  "MinimumOSVersion": "16.0",
+  "DTXcode": "2660",
+  "DTSDKName": "iphoneos26.5",
+  "NSBonjourServices": [
+   "_deltaradar._tcp"
+  ],
+  "NSLocalNetworkUsageDescription": "用于在同一 Wi-Fi 内接收主手机的 SOCKS5 TCP/UDP 流量并直接转发。",
+  "UIBackgroundModes": [
+   "audio"
+  ],
+  "NSAppTransportSecurity": "(absent)",
+  "DRAPIBaseURL": "https://103.215.81.113",
+  "DRProductName": "MyRader Pro",
+  "DRProMode": true,
+  "UIRequiresFullScreen": true,
+  "UIDeviceFamily": [
+   1,
+   2
+  ]
+ }
+}

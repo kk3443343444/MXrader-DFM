@@ -88,6 +88,10 @@ targets:
         PRODUCT_MODULE_NAME: BattleReceiverOpen
         INFOPLIST_FILE: BattleReceiverOpen/Info.plist
         GENERATE_INFOPLIST_FILE: NO
+        # 这两个值是**本机开发兜底**：CI 会用 xcodebuild 命令行覆盖它们
+        # （-CURRENT_PROJECT_VERSION=<run_number> MARKETING_VERSION=2.3.7-<short_sha>），
+        # 于是启动页能唯一标识一次构建。详见 .github/workflows/ios.yml 的
+        # "Compute build stamp" / "Build app (unsigned)" 两步与 core/build.rs。
         CURRENT_PROJECT_VERSION: "32"
         MARKETING_VERSION: "2.3.7"
         CODE_SIGN_ENTITLEMENTS: BattleReceiverOpen/BattleReceiverOpen.entitlements

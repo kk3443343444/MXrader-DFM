@@ -19,10 +19,14 @@
 	<string>BattleReceiverOpen</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- 构建版本戳（需求 1）：必须是 $(...) 引用而不能写死 —— CI 用
+	     `xcodebuild ... MARKETING_VERSION=2.3.7-<short_sha> CURRENT_PROJECT_VERSION=<run_number>`
+	     覆盖这两个 build setting，写死的字面量不会被返回值，界面就又会"每版都一样"。
+	     本机开发兜底值在 ios/project.yml（2.3.7 / 32）。详见 docs/BUILD_STAMP.md。 -->
 	<key>CFBundleShortVersionString</key>
-	<string>2.3.7</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>32</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 
 	<key>CFBundleIconFiles</key>
 	<array>
@@ -95,6 +99,14 @@
 	<array>
 		<integer>1</integer>
 		<integer>2</integer>
+	</array>
+	<!-- 后台保活（需求 4）：A 机一被系统挂起，B 机的 TCP+UDP 中继就全断（真机症状是
+	     A 机切后台/锁屏后 B 机"全网断"）。参考实现（docs/REFERENCE_MYRADERPRO.md §4.3）
+	     的做法就是 audio 后台模式 + .playback 音频会话 + 循环播放静音 PCM，
+	     实现在 BackgroundKeepAlive.swift，由 ReceiverModel 按 phase 开关。 -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>

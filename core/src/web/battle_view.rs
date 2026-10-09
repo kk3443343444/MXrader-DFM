@@ -225,7 +225,18 @@ pub fn hello_with_snapshot(read_only: bool, cfg: &Config, snapshot: &Value) -> V
 /// * `total_pages` / `positioned_in_page` / `server_decode_gate` are preserved from the engine and
 ///   reported as `pagination` / `decode` bookkeeping blocks the frontend can rely on.
 pub fn radar_state(engine_snapshot: Value, state: &AppState) -> Value {
-    radar_state_with(engine_snapshot, state.read_only())
+    let mut message = radar_state_with(engine_snapshot, state.read_only());
+    // 目标地址统计（需求 2）：雷达页的「诊断」面板直接显示这 Top 10，用户在 B 机上
+    // 就能读出游戏服务器 IP —— 不必再回到 A 机的诊断页。数据很小（10 条），
+    // 而且 `state` 帧本来就被限流（见 web/ws.rs 的 MAX_STATE_PER_SECOND）。
+    if let Value::Object(ref mut map) = message {
+        let destinations = state.destination_snapshot(crate::census::RADAR_DESTINATION_LIMIT);
+        map.insert(
+            "destinations".to_string(),
+            serde_json::to_value(destinations).unwrap_or_else(|_| Value::Array(Vec::new())),
+        );
+    }
+    message
 }
 
 /// Pure state serializer: same as [`radar_state`] but without touching `AppState`, so the unit

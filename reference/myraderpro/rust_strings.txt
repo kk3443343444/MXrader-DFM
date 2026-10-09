@@ -1,0 +1,47 @@
+# Rust-side protocol / diagnostic strings (crate delta_radar_edge)
+
+0x001aa8a0  tcpProbeTimeoutsmirrorReconnectsmirrorQueueDepthtgcpHeaderOnlyUpvalid TGCP primeUnknownExtension
+0x001ab49a  onous tasks.assertion failed: src.len() == dst.len()Vec is sized conservativelylanIpsocksPortsocksUsernamesocksPasswordingestUrlingestTokenreceiverSessionIdconnectionGenerationstruct EdgeConfig with 8 elementsno addresses to send data tofailed to park threadFailed to `Enter::block_on`RUST_MIN_STACK1
+0x001b8b23  SOCKS version
+0x001b8b34  SOCKS auth requiredauth versioninvalid local credentialsedge runtimeSOCKS authenticationrequest version
+0x001b8bdb  stoppedTGCP upstream closed before the server helloaddress type
+0x001b8dac  UDP_C channel FName offset overflowUDP_C channel FName length is invalidUDP_C bunch payload length exceeds packet/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-tungstenite-0.27.0/src/compat.rs:152 Read.with_context read -> poll_read/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-tungstenite-0.27.0/src/compat.rs:180 Write.with_context flush -> poll_flush
+0x001b8f3c  /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-tungstenite-0.27.0/src/compat.rs:169 Write.with_context write -> poll_write/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-tungstenite-0.27.0/src/lib.rs:297 Stream.with_context poll_next -> read()payload length out of rangelan_ipinvalid port or generationingest_url
+0x001b90a2  ingest requires wssinvalid ingest identityendpoint length out of rangeendpoint port out of rangerunningsocksListenerReadymirrorConnectedtcpConnectionssocksAuthAttemptssocksAuthSuccessessocksAuthFailuressocksTcpConnectSuccessessocksTcpConnectFailurestcpProbeUpstreamFirstudpAssociationsudpAssociateRequestsudpAssociateFailuresudpDatagramsReceivedactiveUdpAssociationsudpPacketsUpudpPacketsDownudpRelay
+0x001b9232  ErrorsudpSourceRejectedudpParseErrorsudpSendErrorsmirrorAcceptedmirrorDroppedmirrorSentmirrorErrorstgcpTcpConnectionstgcpHandshakestgcpHandshakesCompletedtgcpKeysExtractedtgcpFramesUptgcpFramesDowntgcpBytesUptgcpBytesDowntgcpTransformMaxUstgcpSessionInitMaxUstgcpHeaderOnlyDowntgcpKeyCandidatestgcpVerifiedKeyBindingstgcpKeyProbeMaxUslastKeyAssociationlastKeyEndpointdrk1KeysQueueddrk1KeysSentdrk1Con
+0x001b93c2  flictslastKeyFingerprintlastKeyAgeMslastErrorlastProxyErrorlastMirrorErrorlastUdpErrormid > lencalled `Result::unwrap()` on an `Err` valueTGCP DH shared secret is degenerateTGCP DH peer public value is outside the accepted rangeTGCP DH private exponent is outside the accepted range97981e0aade0de72e29cd2789193562547bad2591fb7e59c523923dddecebccae49bdcd4b8ec39022b0bd95d4af8fd3cd600919393255c1084c2fd
+0x001b9552  5abb2fede3generated TGCP private exponentClient handshake initiated.tungstenite::handshake::clientinternal error: entered unreachable code: invalid Once statereceived plaintext buffer fullthreads should not terminate unexpectedlyadvancing io slices beyond their lengthadvancing IoSlice beyond its lengthtls handshake eofTGCP client stream ended with an incomplete frameTGCP server stream ended with a
+0x001b96e2  n incomplete frameTGCP client data arrived before the server helloduplicate TGCP handshakeTGCP server data arrived before the client hello3f
+0x001b9772  invalid TGCP stream frame lengthsTGCP stream buffer exceeds the parser limitnon-TGCP bytes encountered after interceptionassertion failed: idx < CAPACITYassertion failed: edge.height == self.height - 1bit read exceeds bufferbit extraction exceeds bufferUDP_C packet exceeds bunch limitUDP_C packet contains no complete bunchUDP_C notify history exceeds packetUDP_C notify framing bit is setUDP_C pack
+0x001b9902  et is shorter than its notify headerUE packed uint exceeds 10 octetstruncated UE packed uintUDP_C open/close flag appears outside a control bunchUDP_C partial boundary flag appears on a complete bunchUDP_C reserved bunch flag is setUDP_C bunch payload storage does not match its bit countUDP_C bunch extends beyond the framed packetUDP_C bunch header size is invalidUDP_C bunch channel index is outsi
+0x001b9a92  de the live rangeUDP_C packet has no complete bunch boundaryTGCP frame length mismatchinvalid TGCP frame lengthsinvalid TGCP frame header
+0x001b9b20  TGCP mode-3 padding or trailer mismatchTGCP mode-3 padding is out of rangeTGCP mode-3 plaintext is too shortTGCP mode-3 ciphertext is not block alignedTGCP replacement public value changes the header lengthTGCP handshake header is too shortinvalid TGCP DH public value lengthunexpected TGCP mode-3 handshake
+0x0020e3a5  socksPort
+0x0020fd15  socksPort
+0x002100f5  ingestURL
+0x002100ff  ingestToken
+0x00211a00  socksTcpConnectSuccesses
+0x00211a20  socksTcpConnectFailures
+0x00211a40  TGCP TCP / 
+0x00211a60  tgcpTcpConnections
+0x00211aa0  tgcpHandshakesCompleted
+0x00211ae0  tgcpHeaderOnlyUp
+0x00211b00  tgcpHeaderOnlyDown
+0x00211b60  tgcpTransformMaxUs
+0x00211ba0  tgcpSessionInitMaxUs
+0x00211c50  tgcpKeysExtracted
+0x00211c90  tgcpKeyCandidates
+0x00211cb0  tgcpVerifiedKeyBindings
+0x00211d30  tgcpKeyProbeMaxUs
+0x00211e90  mirrorQueueDepth
+0x00211ed0  mirrorReconnects
+0x00211f90  socksAuthSuccesses
+0x00211fb0  socksAuthFailures
+0x00212030  socksListenerReady
+0x00212374   SOCKS :
+0x00213da1  mirror: 
+0x00213dac  mirror heartbeat: 
+0x00213dc1  mirror key frame: 
+0x00213dd6  mirror frame: 
+0x00213f80  src/tgcp.rs
+0x00213fd6  TGCP DH public value must be 

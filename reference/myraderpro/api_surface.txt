@@ -1,0 +1,25 @@
+# HTTP / WebSocket surface (all literals with offsets)
+
+0x212940  https://122.10.118.52                (hard-coded API base in the binary)
+          https://103.215.81.113               (Info.plist DRAPIBaseURL)
+0x212960  api/v1/auth/login
+0x212980  api/v1/app/announcement
+0x2129c0  api/v1/auth/refresh
+0x212a00  api/v1/receiver-sessions
+0x212b20  api/v1/auth/logout
+0x212b40  api/v1/receiver-sessions/
+0x1b8d00  Authorization                       (rustls/tokio side: header name)
+0x1b8d0f  X-Receiver-Session                  (header name)
+0x213d83  "Bearer "
+0x1b90b2  "wss" (inside "ingest requires wss")
+0x212338  _deltaradar._tcp.                   (Bonjour service type)
+0x211820  shadowrocket://add/                  (import-link prefix)
+0x20d360  QRCodeGenerator                     (CIFilter(name:))
+
+# Keychain / UserDefaults
+0x212c20  com.deltaradar.receiver.account.v1  (keychain service)
+0x212c80  com.deltaradar.announcement.seen.   (UserDefaults key prefix)
+
+# Notification-ish identifiers
+radar.share.open / radar.share.reset / radar.share.revoke / radar.share.system
+radar.share.copy / radar.share.create

@@ -30,6 +30,8 @@
 pub mod announcement;
 pub mod battle;
 pub mod card_activation;
+/// 目标地址统计（分流规则要的"游戏服务器 IP"从这里来）。
+pub mod census;
 pub mod config;
 pub mod debug_monitor;
 pub mod desktop_auth;
@@ -42,8 +44,19 @@ pub mod web;
 #[cfg(test)]
 pub mod testutil;
 
-/// 版本串：与 CFBundleShortVersionString 对应，`r` 后缀为构建通道。
-pub const VERSION: &str = "2.3.7-r39";
+/// 版本串：一次构建的唯一标识，**由 `build.rs` 在编译期注入**（见需求「构建版本戳」）。
+///
+/// 形态（CI）：`2.3.7-a1b2c3d (57)` = `<MARKETING_VERSION> (<run number>)`，与启动页
+/// `BattleSplashView` 的 `v\(version) (\(build))` 逐个字符对应；本地构建（没有任何注入）
+/// 落回 `2.3.7-r39`。
+///
+/// 为什么不直接读 `env!("...")`：`env!` 在变量缺失时是编译错误，本机 `cargo test` 与
+/// 开发机构建都不带这些变量。`build.rs` 负责算出兜底值，再用 `cargo:rustc-env` 交给
+/// rustc，于是这里永远只是一个普通常量。
+///
+/// 同一份戳会出现在三处，必须互相印证：IPA 资产名 / 启动页文案 / 本常量所在的状态 JSON
+/// （`status.version`，以及 C ABI 的 `battle_proxy_version()`）。
+pub const VERSION: &str = env!("BATTLE_VERSION");
 
 /// 样本品牌标识（Info.plist 的 `BattleBrandVariant`）。
 pub const BRAND_VARIANT: &str = "mx";

@@ -29,6 +29,7 @@ struct DiagnosticsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: BattleMetrics.sectionSpacing) {
                     summarySection
+                    destinationsSection
                     countersSection
                     actionsSection
                     jsonSection
@@ -53,6 +54,12 @@ struct DiagnosticsSheet: View {
 
             BattleInfoRow(label: "阶段", value: model.phase.localizedLabel, mono: false)
             BattleInfoRow(label: "模式", value: model.statusSnapshot.mode ?? "ios_receiver")
+            // 构建戳（需求 1）：App 包里的版本（Info.plist，启动页显示同一对值）与
+            // 链接进来的 Rust 核心自报的版本并排显示 —— 两者不一致就说明这次构建的
+            // 版本戳注入断了。
+            BattleInfoRow(label: "App 构建", value: appBuildText)
+            BattleInfoRow(label: "核心版本", value: model.receiverVersion)
+            BattleInfoRow(label: "后台保活", value: model.keepAliveActive ? "音频静音播放（已开启）" : "未开启", mono: false)
             BattleInfoRow(label: "主端口", value: portText)
             BattleInfoRow(label: "SOCKS5", value: model.socksURL)
             BattleInfoRow(label: "雷达网址", value: model.radarDisplayURL)
@@ -78,6 +85,70 @@ struct DiagnosticsSheet: View {
             }
         }
         .battleCard()
+    }
+
+    // MARK: - Destinations
+
+    /// 「目标地址」：把 Rust 的 destination census 摊开给用户看。
+    ///
+    /// 为什么需要它：全局代理会把 B 机的**所有**流量双跳回这台 A 机，其他 App 会卡到断网，
+    /// 所以用户必须能写"只代理游戏"的分流规则 —— 前提是他知道游戏服务器的 IP。
+    /// 这里给出按包数降序的前 20 个目标（Rust 侧按 IP 聚合 TCP CONNECT 目标与 UDP 转发的
+    /// 每个 dest，最多跟踪 128 条，超出按最久未更新淘汰）。
+    private var destinationsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            BattleSectionHeader(
+                title: "目标地址",
+                subtitle: destinationsSubtitle
+            )
+
+            if topDestinations.isEmpty {
+                Text("还没有记录到目标地址。让 B 机连上代理并进一局，这里就会出现按包数排序的服务器 IP。")
+                    .font(BattleFont.caption(12))
+                    .foregroundStyle(BattlePalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                ForEach(topDestinations.indices, id: \.self) { index in
+                    BattleInfoRow(
+                        label: "\(index + 1). \(topDestinations[index].ip)",
+                        value: "\(topDestinations[index].packets) 包" + lastSeenText(topDestinations[index].lastMs)
+                    )
+                }
+                Text("按包数排序，最多显示 20 条。把这些 IP 填进分流规则（只代理这些地址）就能避免全局代理把手机其他流量也双跳。")
+                    .font(BattleFont.caption(11))
+                    .foregroundStyle(BattlePalette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .battleCard()
+    }
+
+    /// 前 20 个目标（Rust 已经按包数降序排好，这里只截断）。
+    private var topDestinations: [DestinationStat] {
+        Array(model.statusSnapshot.destinations.prefix(20))
+    }
+
+    private var destinationsSubtitle: String {
+        let total = model.statusSnapshot.destinationsTotal
+        let tracked = model.statusSnapshot.destinations.count
+        if total == 0 {
+            return "TCP CONNECT 目标 + UDP 转发目标 · 按 IP 聚合"
+        }
+        return "累计 \(total) 次命中 · 当前跟踪 \(tracked) 个目标（内存有界）"
+    }
+
+    /// 相对时间：诊断页每 2 秒轮询一次，绝对时间戳反而不好读。
+    private func lastSeenText(_ lastMs: Int?) -> String {
+        guard let lastMs, lastMs > 0 else { return "" }
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        let delta = max(0, nowMs - lastMs) / 1000
+        return delta < 60 ? " · \(delta)s 前" : " · \(delta / 60)m 前"
+    }
+
+    /// App 包里的构建戳：`v<CFBundleShortVersionString> (<CFBundleVersion>)`，
+    /// 与启动页 `BattleSplashView` 的默认 `versionText` 逐字相同。
+    private var appBuildText: String {
+        "v\(Bundle.main.battleMarketingVersion) (\(Bundle.main.battleBuildNumber))"
     }
 
     // MARK: - Counters

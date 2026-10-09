@@ -51,6 +51,9 @@ final class ReceiverModel: ObservableObject {
     @Published private(set) var statusSnapshot: ReceiverStatus = .idle
     @Published private(set) var lastStatusError: String?
 
+    /// 后台保活是否真的在播静音音频（诊断页显示用）。
+    @Published private(set) var keepAliveActive = false
+
     /// Set once a live radar page is available; keeps `start()` idempotent
     /// across scene reactivation.
     private(set) var hasBooted = false
@@ -129,6 +132,8 @@ final class ReceiverModel: ObservableObject {
     private let bridge = BattleBridge.shared
     /// 监听 phase 变化以同步"是否禁止息屏"（见 init 里的说明）。
     private var phaseSink: AnyCancellable?
+    /// 后台保活（音频静音播放，见 BackgroundKeepAlive.swift）。
+    private let keepAlive = BackgroundKeepAlive()
     private let advertiser: BonjourAdvertiser
     private var healthTask: Task<Void, Never>?
     private var startTask: Task<Void, Never>?
@@ -152,17 +157,28 @@ final class ReceiverModel: ObservableObject {
         self.advertiser = BonjourAdvertiser(brand: brand)
         // 运行期间禁止自动息屏。
         //
-        // 原因：Info.plist 没有 UIBackgroundModes（参考样本也一样），iOS 会挂起进入后台
-        // 的进程 —— 一挂起转发就全断，B 机游戏立刻"网络异常"。默认自动锁屏只有 30 秒，
-        // 而玩家必然要把注意力放在 B 机上，不锁屏这件事必须由代码保证。
+        // 原因：Info.plist 现在带 UIBackgroundModes=[audio]（配合静音播放），但**亮屏**
+        // 时的挂起由系统按自动锁屏时间决定 —— 默认只有 30 秒，而玩家必然要把注意力放在
+        // B 机上，不锁屏这件事必须由代码保证；切后台/锁屏则由 BackgroundKeepAlive 兜住。
         phaseSink = $phase
             .removeDuplicates()
-            .sink { newPhase in
+            .sink { [weak self] newPhase in
                 // 用 Task 跳到主 actor：@Published 的 sink 虽然在主线程触发，
                 // 但闭包本身不是主 actor 隔离的，直接访问 UIApplication 会在
                 // Swift 6 严格并发下报错（Swift 5 只是警告，但这个写法两边都安全）。
+                // AVAudioSession 同样只能在主线程调用（见 BackgroundKeepAlive 的注释）。
                 Task { @MainActor in
+                    guard let self else { return }
                     UIApplication.shared.isIdleTimerDisabled = (newPhase == .running)
+
+                    // 后台保活与 phase 联动：只有接收器真的在跑才播静音音频，
+                    // 其它阶段（idle/starting/failed/stopping）立刻停掉并把音频会话交还系统。
+                    if newPhase == .running {
+                        self.keepAlive.start()
+                    } else {
+                        self.keepAlive.stop()
+                    }
+                    self.keepAliveActive = self.keepAlive.isActive
                 }
             }
         preflight()
@@ -471,6 +487,12 @@ final class ReceiverModel: ObservableObject {
                 }
             } else if phase.isTransient, phase != .starting {
                 start()
+            }
+            // 后台保活：切回前台时把静音循环（重新）拉起来 —— 中断、路由变化（拔耳机）、
+            // 以及媒体服务重启都会让播放停掉，这里做一次兜底恢复；不跑阶段则是空操作。
+            if phase == .running {
+                keepAlive.resumeIfNeeded()
+                keepAliveActive = keepAlive.isActive
             }
         case .inactive:
             isSceneActive = false

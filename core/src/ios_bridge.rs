@@ -52,7 +52,11 @@ fn slot() -> &'static Mutex<Option<Receiver>> {
 }
 
 /// 静态版本串（带 NUL，永远有效，不需要释放）。
-static VERSION_C: &str = concat!("2.3.7-r39", "\0");
+///
+/// 直接取 `crate::VERSION` —— 那是 build.rs 注入的**同一次构建的戳**，于是
+/// `battle_proxy_version()`（Swift 诊断页顶部显示的那个）与状态 JSON 的 `version`
+/// 字段、以及 IPA 资产名不可能各说各话。
+static VERSION_C: &str = concat!(env!("BATTLE_VERSION"), "\0");
 
 fn to_c_string(s: String) -> *mut c_char {
     match CString::new(s) {

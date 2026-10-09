@@ -43,6 +43,11 @@ fi
 
 command -v cargo >/dev/null || { echo "错误：找不到 cargo，请先安装 Rust（rustup）。" >&2; exit 1; }
 
+# 构建版本戳（需求 1）：CI 在 "Compute build stamp" 步骤里写进 $GITHUB_ENV，这里只是把它
+# 打印出来，好让 CI 日志一眼看出"这次线性库里注进去的到底是哪个戳"。没注入时
+# core/build.rs 会兜底成 2.3.7-r39（本机 cargo test 就属于这种情况）。
+echo "==> 构建版本戳 BATTLE_BUILD_STAMP=${BATTLE_BUILD_STAMP:-（未注入，build.rs 兜底 2.3.7-r39）}"
+
 mkdir -p "$OUT"
 
 # 注意：这里刻意不用 `[[ ... ]] && VAR=...` 这种写法。

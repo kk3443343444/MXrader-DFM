@@ -101,6 +101,12 @@ pub struct StatusSnapshot {
     pub runtime_status: RuntimeStatus,
     #[serde(flatten)]
     pub counters: SessionCounters,
+    /// 最近访问的目标地址（TCP CONNECT 目标 + UDP 转发的每个 dest），按包数降序取前
+    /// [`crate::census::STATUS_DESTINATION_LIMIT`] 条。用户靠它自己读出"游戏服务器 IP"，
+    /// 从而写出"只代理游戏"的分流规则（见 `crate::census`）。
+    pub destinations: Vec<crate::census::DestinationStat>,
+    /// 见过的命中总量（含已被淘汰的目标）—— 有界内存下唯一能反映"总共访问过多少"的数字。
+    pub destinations_total: u64,
     pub last_health_check: String,
     pub error: Option<String>,
 }
@@ -179,6 +185,8 @@ struct Inner {
     shutdown_tx: watch::Sender<bool>,
     capture: RwLock<CaptureStatus>,
     announcement: RwLock<Option<serde_json::Value>>,
+    /// 目标地址统计（有界：最多 128 条，见 `crate::census`）。
+    destinations: Arc<crate::census::DestinationCensus>,
     created_ms: u64,
 }
 
@@ -254,6 +262,7 @@ impl AppState {
                     max_capture_seconds: cfg.diagnostics.max_capture_seconds,
                 }),
                 announcement: RwLock::new(None),
+                destinations: Arc::new(crate::census::DestinationCensus::new()),
                 created_ms: now_ms(),
             }),
         }
@@ -462,6 +471,30 @@ impl AppState {
         self.inner.counters.loot_payloads_skipped.fetch_add(1, Ordering::Relaxed);
     }
 
+    // ---- 目标地址统计 ----
+    //
+    // 调用点在网络热路径上（每个 UDP 数据报一次），所以这里刻意是**同步**方法：
+    // 内部只有一个 DashMap 查找 + 两个原子操作，没有任何 await/锁竞争。
+    /// 记一次目标命中（TCP CONNECT 目标、UDP 转发的 dest）。
+    pub fn note_destination(&self, ip: IpAddr, ts_ms: u64) {
+        self.inner.destinations.observe(ip, ts_ms);
+    }
+
+    /// `SocketAddr` 版本：只取 IP（分流规则要的是 IP，端口对它是噪音）。
+    pub fn note_destination_addr(&self, addr: SocketAddr, ts_ms: u64) {
+        self.note_destination(addr.ip(), ts_ms);
+    }
+
+    /// 前 `limit` 条目标（按包数降序）。
+    pub fn destination_snapshot(&self, limit: usize) -> Vec<crate::census::DestinationStat> {
+        self.inner.destinations.snapshot(limit)
+    }
+
+    /// 整体统计（跟踪条数 / 上限 / 总量 / 淘汰次数）。
+    pub fn destination_stats(&self) -> crate::census::CensusStats {
+        self.inner.destinations.stats()
+    }
+
     // ---- 诊断 / WS ----
     pub fn diag_sender(&self) -> broadcast::Sender<serde_json::Value> {
         self.inner.diag_tx.clone()
@@ -628,6 +661,12 @@ impl AppState {
             },
             runtime_status: self.runtime_status(),
             counters: self.inner.counters.snapshot(),
+            // 目标地址：诊断页与雷达页靠它显示"你自己读得出来的游戏服务器 IP"。
+            destinations: self
+                .inner
+                .destinations
+                .snapshot(crate::census::STATUS_DESTINATION_LIMIT),
+            destinations_total: self.inner.destinations.total_packets(),
             last_health_check: now_rfc3339(),
             error: self.error(),
         }
@@ -782,5 +821,27 @@ mod tests {
         assert_eq!(j["phase"], "idle");
         assert_eq!(j["socks_port"], 2025);
         assert!(j.get("error").is_some());
+    }
+
+    /// 目标地址统计要跟着状态 JSON 一起出去 —— 用户就是在诊断页里读这个数组，
+    /// 抄出游戏服务器 IP 来写"只代理游戏"的分流规则。
+    #[tokio::test]
+    async fn status_json_reports_the_destination_census() {
+        let cfg = crate::config::Config::default();
+        let st = AppState::new(&cfg, "tok".into());
+        st.set_ports(2025, 2025);
+
+        st.note_destination("203.0.113.7".parse().unwrap(), 1_000);
+        st.note_destination("203.0.113.7".parse().unwrap(), 2_000);
+        st.note_destination_addr("198.51.100.4:2025".parse().unwrap(), 1_500);
+
+        let j = st.status_json().await;
+        let dests = j["destinations"].as_array().expect("destinations 必须是数组");
+        assert_eq!(dests.len(), 2);
+        assert_eq!(dests[0]["ip"], "203.0.113.7");
+        assert_eq!(dests[0]["packets"], 2, "同一个 IP 的多次命中要聚合");
+        assert_eq!(dests[0]["last_ms"], 2_000);
+        assert_eq!(dests[1]["ip"], "198.51.100.4");
+        assert_eq!(j["destinations_total"], 3, "总量含所有命中");
     }
 }
