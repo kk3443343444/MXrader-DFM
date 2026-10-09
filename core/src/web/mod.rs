@@ -945,18 +945,37 @@ impl IntoResponse for AdminReject {
 }
 
 /// Shared gate for every `/api/admin/*` handler.
+/// 判断是不是"本机"来源。
+///
+/// 不能直接用 `SocketAddr::ip().is_loopback()`：在 iOS/双栈环境下，本机请求常常
+/// 以 **IPv4-mapped IPv6** 的形态出现（`::ffff:127.0.0.1`），而 Rust 对它的
+/// `is_loopback()` 返回 false。这个差别真机上踩过：Safari 访问
+/// `http://127.0.0.1:<port>/api/admin/diag` 被判定成"远端"，于是被要求带 token。
+fn is_local_peer(peer: SocketAddr) -> bool {    match peer.ip() {
+        std::net::IpAddr::V4(v4) => v4.is_loopback(),
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6
+                    .to_ipv4_mapped()
+                    .map(|v4| v4.is_loopback())
+                    .unwrap_or(false)
+        }
+    }
+}
+
 fn admin_gate(
     ctx: &WebCtx,
     peer: SocketAddr,
     headers: &HeaderMap,
     action: AdminAction,
 ) -> Result<(), AdminReject> {
-    if !peer.ip().is_loopback() {
-        return Err(AdminReject {
-            requirement: Some(action.requirement()),
-            peer,
-        });
+    // 本机（含 IPv4-mapped IPv6 回环）直接放行。
+    // 设计意图就是"本地管理通道"：这台设备就是用户自己的，而 iOS 上并没有方便的
+    // 途径把 token 抄出来 —— 卡住本机只会把排查与协议标定（开采集/导出流量）一起堵死。
+    if is_local_peer(peer) {
+        return Ok(());
     }
+    // 远端：必须带有效 token（token 为空视作关闭远端管理）。
     let expected = ctx.admin_token();
     let provided = headers
         .get(ADMIN_TOKEN_HEADER)
@@ -966,7 +985,7 @@ fn admin_gate(
         .to_string();
     if expected.is_empty() || provided != expected {
         return Err(AdminReject {
-            requirement: None,
+            requirement: Some(action.requirement()),
             peer,
         });
     }
