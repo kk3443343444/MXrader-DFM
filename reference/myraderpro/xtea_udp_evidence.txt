@@ -1,0 +1,125 @@
+# Evidence: XTEA decryption inside the UDP datagram decoder of DeltaRadarIOS 5.1.58
+# Binary: Payload/MyRaderPro.app/DeltaRadarIOS   sha256 see docs/REFERENCE_DECRYPT_PATH.md
+# Function entry (branch-referenced): 0x100067ac0   secondary entry: 0x100067b5c
+# Callers (bl): 0x10008b68c, 0x10008b6a0, 0x10008b748, 0x10008b75c
+#
+# 0x100067b84  mov  w19, #0x8647 ; movk w19,#0x61c8,lsl#16   -> w19 = 0x61C88647 = -0x9E3779B9 (delta)
+# 0x100067c28  mov  w16, #0x3720 ; movk w16,#0xc6ef,lsl#16   -> w16 = 0xC6EF3720 = 32*0x9E3779B9 (decrypt sum)
+# 0x100067c30  mov  w14, #0xbd67 ; movk w14,#0x28b7,lsl#16   -> w14 = 0xC6EF3720 - delta
+# 0x100067c38  mov  w15, #0x20                                -> 32 iterations x 2 rounds = 64 rounds
+# 0x100067c3c  ubfx w17, w16, #0xb, #2                        -> key index (sum>>11)&3
+# 0x100067c54  lsl  w1, w12, #4 / eor w1, w1, w12, lsr #5 / add w1, w1, w12
+# 0x100067c18  and  x14, x9, #7 ; ldr q0,[x10,x14,lsl#4]      -> per-block key = keybank[block_index & 7]
+#
+## prologue / key-bank selection / round loop / tail of loop
+0x100067b5c  stp       x28, x27, [sp, #-0x60]!
+0x100067b60  stp       x26, x25, [sp, #0x10]
+0x100067b64  stp       x24, x23, [sp, #0x20]
+0x100067b68  stp       x22, x21, [sp, #0x30]
+0x100067b6c  stp       x20, x19, [sp, #0x40]
+0x100067b70  stp       x29, x30, [sp, #0x50]
+0x100067b74  add       x29, sp, #0x50
+0x100067b78  sub       sp, sp, #0x280
+0x100067b7c  mov       x25, x0
+0x100067b80  sub       x22, x29, #0xf0
+0x100067b84  mov       w19, #0x8647
+0x100067b88  movk      w19, #0x61c8, lsl #16
+0x100067b8c  ldp       x9, x8, [x2]
+0x100067b90  stp       x0, x9, [sp, #0x10]
+0x100067b94  str       x8, [sp]
+0x100067b98  str       x1, [sp, #8]
+0x100067b9c  b         #0x100067bb8
+0x100067ba0  mov       x0, x27
+0x100067ba4  mov       x1, x26
+0x100067ba8  mov       w2, #1
+0x100067bac  bl        #0x100098eb8
+0x100067bb0  mov       w0, #1
+0x100067bb4  cbnz      w20, #0x100068fe8
+0x100067bb8  ldp       x8, x9, [x25]
+0x100067bbc  cmp       x8, x9
+0x100067bc0  b.eq      #0x100069004
+0x100067bc4  add       x9, x8, #0x18
+0x100067bc8  str       x9, [x25]
+0x100067bcc  ldr       x26, [x8, #0x10]
+0x100067bd0  cbz       x26, #0x100068da4
+0x100067bd4  ldr       x23, [x8, #8]
+0x100067bd8  ldr       x8, [sp, #0x18]
+0x100067bdc  ldr       x20, [x8]
+0x100067be0  bl        #0x100098ec4
+0x100067be4  mov       x0, x26
+0x100067be8  mov       w1, #1
+0x100067bec  bl        #0x100098eb4
+0x100067bf0  cbz       x0, #0x1000692a0
+0x100067bf4  mov       x27, x0
+0x100067bf8  mov       x1, x23
+0x100067bfc  mov       x2, x26
+0x100067c00  bl        #0x1001a56fc
+0x100067c04  ands      x8, x26, #0x7ffffffffffffff8
+0x100067c08  b.eq      #0x100067ca4
+0x100067c0c  mov       x9, #0
+0x100067c10  add       x10, x20, #0x18
+0x100067c14  mov       x11, x27
+0x100067c18  and       x14, x9, #7
+0x100067c1c  ldp       w12, w13, [x11]
+0x100067c20  ldr       q0, [x10, x14, lsl #4]
+0x100067c24  str       q0, [x22]
+0x100067c28  mov       w16, #0x3720
+0x100067c2c  movk      w16, #0xc6ef, lsl #16
+0x100067c30  mov       w14, #0xbd67
+0x100067c34  movk      w14, #0x28b7, lsl #16
+0x100067c38  mov       w15, #0x20
+0x100067c3c  ubfx      w17, w16, #0xb, #2
+0x100067c40  orr       x17, x22, x17, lsl #2
+0x100067c44  ldr       w17, [x17]
+0x100067c48  add       w17, w16, w17
+0x100067c4c  add       w16, w16, w19
+0x100067c50  and       w0, w14, #3
+0x100067c54  lsl       w1, w12, #4
+0x100067c58  eor       w1, w1, w12, lsr #5
+0x100067c5c  add       w1, w1, w12
+0x100067c60  eor       w17, w17, w1
+0x100067c64  sub       w13, w13, w17
+0x100067c68  lsl       w17, w13, #4
+0x100067c6c  eor       w17, w17, w13, lsr #5
+0x100067c70  add       w17, w17, w13
+0x100067c74  orr       x0, x22, x0, lsl #2
+0x100067c78  ldr       w0, [x0]
+0x100067c7c  add       w0, w14, w0
+0x100067c80  eor       w17, w17, w0
+0x100067c84  sub       w12, w12, w17
+0x100067c88  add       w14, w14, w19
+0x100067c8c  subs      x15, x15, #1
+0x100067c90  b.ne      #0x100067c3c
+0x100067c94  stp       w12, w13, [x11], #8
+0x100067c98  add       x9, x9, #1
+0x100067c9c  subs      x8, x8, #8
+0x100067ca0  b.ne      #0x100067c18
+0x100067ca4  lsr       x8, x26, #0x3d
+0x100067ca8  cbnz      x8, #0x100068f8c
+0x100067cac  cmp       x26, #9
+
+## caller: 8 x 16-byte keys copied from state object +0x18..+0x88, then passed as 3rd arg
+0x10008b770  cbz       x25, #0x10008b8bc
+0x10008b774  add       x21, sp, #0x68
+0x10008b778  ldr       x9, [sp, #0x18]
+0x10008b77c  ldr       x8, [x9]
+0x10008b780  add       x20, x8, #1
+0x10008b784  str       x20, [x9]
+0x10008b788  ldur      q0, [x25, #0x58]
+0x10008b78c  stur      q0, [x21, #0xd8]
+0x10008b790  ldur      q0, [x25, #0x68]
+0x10008b794  stur      q0, [x21, #0xe8]
+0x10008b798  ldur      q0, [x25, #0x78]
+0x10008b79c  stur      q0, [x21, #0xf8]
+0x10008b7a0  ldur      q0, [x25, #0x88]
+0x10008b7a4  sub       x22, x29, #0xf0
+0x10008b7a8  str       q0, [x22, #0x70]
+0x10008b7ac  ldur      q0, [x25, #0x18]
+0x10008b7b0  ldur      q1, [x25, #0x28]
+0x10008b7b4  stp       q0, q1, [x22]
+0x10008b7b8  ldur      q0, [x25, #0x38]
+0x10008b7bc  ldur      q1, [x25, #0x48]
+0x10008b7c0  stp       q0, q1, [x22, #0x20]
+0x10008b7c4  add       x8, sp, #0x68
+0x10008b7c8  mov       x0, x25
+0x10008b7cc  bl        #0x10018b9cc

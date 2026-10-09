@@ -1,0 +1,118 @@
+# Evidence: TGCP (intercepted game TCP) path of DeltaRadarIOS 5.1.58
+# mode-3 decrypt wrapper entry: 0x10008bbf8 (16-byte block aligned; custom pad+trailer)
+# block primitive:            0x10015bd14  (round-key XOR + bitsliced block transform)
+# bitsliced core:             0x10015b704 / 0x10015b718
+# key setup:                  0x10015cac8 (writes a 0x280-byte context)
+# callers of mode-3 wrapper:  0x100088cc0, 0x100088d1c, 0x100088df8  (tgcp module, state +0xc1 / +0xd2 keys)
+#
+## mode-3 wrapper 0x10008bbf8
+0x10008bbf8  stp       x28, x27, [sp, #-0x60]!
+0x10008bbfc  stp       x26, x25, [sp, #0x10]
+0x10008bc00  stp       x24, x23, [sp, #0x20]
+0x10008bc04  stp       x22, x21, [sp, #0x30]
+0x10008bc08  stp       x20, x19, [sp, #0x40]
+0x10008bc0c  stp       x29, x30, [sp, #0x50]
+0x10008bc10  add       x29, sp, #0x50
+0x10008bc14  sub       sp, sp, #0x380
+0x10008bc18  mov       x19, x0
+0x10008bc1c  tst       x2, #0xf
+0x10008bc20  b.ne      #0x10008bdc4
+0x10008bc24  mov       x20, x2
+0x10008bc28  mov       x21, x1
+0x10008bc2c  add       x8, sp, #0x28
+0x10008bc30  mov       x0, x3
+0x10008bc34  bl        #0x10015cac8
+0x10008bc38  bl        #0x100098ec4
+0x10008bc3c  mov       x0, x20
+0x10008bc40  mov       w1, #1
+0x10008bc44  bl        #0x100098eb4
+0x10008bc48  cbz       x0, #0x10008be00
+0x10008bc4c  mov       x22, x0
+0x10008bc50  stp       x20, x0, [x29, #-0xe8]
+0x10008bc54  stur      xzr, [x29, #-0xd8]
+0x10008bc58  cmp       x20, #0x10
+0x10008bc5c  b.lo      #0x10008bd94
+0x10008bc60  mov       x23, #0
+0x10008bc64  sub       x24, x29, #0xd0
+0x10008bc68  adrp      x8, #0x1001aa000
+0x10008bc6c  ldr       q0, [x8, #0x820]
+0x10008bc70  sub       x25, x29, #0xd0
+0x10008bc74  mov       x26, x21
+0x10008bc78  str       q0, [sp, #0x10]
+0x10008bc7c  ldr       q0, [x26], #0x10
+0x10008bc80  movi      v1.16b, #0
+0x10008bc84  stp       q1, q1, [x25, #0x20]
+0x10008bc88  stur      q1, [x25, #0x10]
+0x10008bc8c  str       q0, [x24]
+0x10008bc90  sub       x8, x29, #0x90
+0x10008bc94  add       x0, sp, #0x28
+0x10008bc98  sub       x1, x29, #0xd0
+0x10008bc9c  bl        #0x10015bd14
+0x10008bca0  ldr       q1, [x24, #0x40]
+0x10008bca4  ldur      x8, [x29, #-0xe8]
+0x10008bca8  sub       x8, x8, x23
+0x10008bcac  cmp       x8, #0x10
+0x10008bcb0  b.lo      #0x10008bce4
+0x10008bcb4  sub       x20, x20, #0x10
+0x10008bcb8  ldr       q0, [sp, #0x10]
+0x10008bcbc  eor       v0.16b, v1.16b, v0.16b
+0x10008bcc0  add       x8, x23, #0x10
+0x10008bcc4  stur      x8, [x29, #-0xd8]
+0x10008bcc8  str       q0, [x22, x23]
+0x10008bccc  ldr       q0, [x21]
+0x10008bcd0  mov       x23, x8
+0x10008bcd4  mov       x21, x26
+0x10008bcd8  cmp       x20, #0x10
+0x10008bcdc  b.hs      #0x10008bc78
+0x10008bce0  b         #0x10008bd0c
+0x10008bce4  sub       x0, x29, #0xe8
+0x10008bce8  mov       x1, x23
+0x10008bcec  mov       w2, #0x10
+0x10008bcf0  mov       w3, #1
+0x10008bcf4  mov       w4, #1
+0x10008bcf8  str       q1, [sp]
+0x10008bcfc  bl        #0x100199c74
+0x10008bd00  ldr       q1, [sp]
+0x10008bd04  ldp       x22, x23, [x29, #-0xe0]
+0x10008bd08  b         #0x10008bcb4
+0x10008bd0c  ldur      x9, [x29, #-0xe0]
+0x10008bd10  add       x9, x9, x8
+
+## AES bitslice constant pool used by the wrapper (file 0x1aa820)
+0x1001aa820  00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f  ................
+0x1001aa830  63 00 00 00 00 00 00 00 04 00 00 00 00 00 00 00  c...............
+0x1001aa840  00 00 00 00 00 00 00 00 ff ff ff ff ff ff ff ff  ................
+0x1001aa850  bf f4 d0 4d 57 8c 1e d2 ba d0 8d fc 2b 80 96 6d  ...MW.......+..m
+0x1001aa860  ad dd d9 ba 29 bf c1 92 d3 7a b6 ee 7c 9b 4a af  ....)....z..|.J.
+0x1001aa870  cb 35 a8 b6 72 1a ca 99 7d 36 98 df c4 c1 84 cc  .5..r...}6......
+0x1001aa880  74 69 6b 95 62 49 a3 d6 f5 b0 52 c0 41 12 76 92  tik.bI....R.A.v.
+0x1001aa890  c6 f2 29 90 0a 4b 12 17 ef c6 e9 13 3d 8e 5a 8b  ..)..K......=.Z.
+0x1001aa8a0  74 63 70 50 72 6f 62 65 54 69 6d 65 6f 75 74 73  tcpProbeTimeouts
+
+## caller 0x100088cb0 (key pointer = state+0xd2) and key install 0x100088c60
+0x100088c60  ldurb     w9, [x29, #-0xb0]
+0x100088c64  mov       w12, #1
+0x100088c68  strb      w12, [x26, #0xd1]
+0x100088c6c  ldur      w10, [x29, #-0x80]
+0x100088c70  stur      w10, [x26, #0xd2]
+0x100088c74  ldur      w10, [x11, #0x43]
+0x100088c78  stur      w10, [x26, #0xd5]
+0x100088c7c  stur      x8, [x26, #0xd9]
+0x100088c80  strb      w9, [x26, #0xe1]
+0x100088c84  cmp       x23, x21
+0x100088c88  b.ne      #0x100088de8
+0x100088c8c  stp       xzr, x12, [sp, #0xe0]
+0x100088c90  str       xzr, [sp, #0xf0]
+0x100088c94  stp       xzr, x12, [x29, #-0xd8]
+0x100088c98  mov       w8, #1
+0x100088c9c  stp       x8, xzr, [sp, #0x18]
+0x100088ca0  stur      xzr, [x29, #-0xc8]
+0x100088ca4  b         #0x100088e48
+0x100088ca8  ldrb      w8, [x26, #0xd1]
+0x100088cac  tbz       w8, #0, #0x1000893a0
+0x100088cb0  sub       x0, x29, #0xc0
+0x100088cb4  add       x1, x25, x21
+0x100088cb8  add       x3, x26, #0xd2
+0x100088cbc  mov       x2, x19
+0x100088cc0  bl        #0x10008bbf8
+0x100088cc4  ldp       x21, x19, [x29, #-0xc0]

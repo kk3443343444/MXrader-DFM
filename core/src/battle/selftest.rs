@@ -13,9 +13,11 @@
 
 use base64::Engine as _;
 use serde_json::json;
+use std::sync::Arc;
 
 use super::transport_crypto::{Decoded, TransportKeys, TransportKind, decode_packet, aes_encrypt_data};
 use super::udpxin::{PacketFramer, ProtocolProfile};
+use super::xtea::XteaKeyBank;
 
 /// 一条金标准向量。
 #[derive(Debug, Clone, Copy)]
@@ -171,7 +173,12 @@ fn check_transport_sniffing(r: &mut SelfTestReport) {
     let plain = b"BATTLE-vector-payload-0123456789ABCDEF".to_vec();
     let mut enc = plain.clone();
     aes_encrypt_data(&key, &mut enc);
-    let keys = TransportKeys { aes_key: Some(key), xor_seed: 0, xor_after_aes: false };
+    let keys = TransportKeys {
+        aes_key: Some(key),
+        xor_seed: 0,
+        xor_after_aes: false,
+        ..TransportKeys::default()
+    };
     let want = plain.clone();
     let d = decode_packet(&enc, &keys, None, move |c| c == &want[..]);
     r.push(
@@ -186,6 +193,38 @@ fn check_transport_sniffing(r: &mut SelfTestReport) {
         "transport/unknown_preserves_bytes",
         d.kind == TransportKind::Unknown && d.bytes == vec![0xDE, 0xAD, 0xBE, 0xEF],
         format!("kind={:?}", d.kind),
+    );
+
+    // 4) 装了 XTEA bank（8 × 16 B，按 8 字节块轮换）后必须优先认出 XTEA 剖面。
+    //    64 字节明文 = 8 块，正好把 bank[0..7] 全部用上，所以这一条同时验证轮换。
+    let mut bank_keys = [[0u8; 16]; 8];
+    for (i, k) in bank_keys.iter_mut().enumerate() {
+        for (j, b) in k.iter_mut().enumerate() {
+            *b = (i * 16 + j) as u8;
+        }
+    }
+    let bank = XteaKeyBank::from_keys(bank_keys);
+    let xtea_plain: Vec<u8> = b"0123456789ABCDEF".repeat(4);
+    let mut xtea_enc = xtea_plain.clone();
+    bank.encrypt_in_place(&mut xtea_enc);
+    let keys = TransportKeys {
+        xtea_bank: Some(Arc::new(bank)),
+        ..TransportKeys::default()
+    };
+    let want = xtea_plain.clone();
+    let d = decode_packet(&xtea_enc, &keys, None, move |c| c == &want[..]);
+    r.push(
+        "transport/xtea_key_bank_detected",
+        d.kind == TransportKind::XteaBank && d.bytes == xtea_plain,
+        format!("kind={:?} len={}", d.kind, d.bytes.len()),
+    );
+
+    // 5) 没装 bank 时同一份密文必须回落原始字节（"没装 bank 就不改行为"的回归位）。
+    let d = decode_packet(&xtea_enc, &TransportKeys::default(), None, |_| false);
+    r.push(
+        "transport/xtea_absent_keeps_legacy_path",
+        d.kind == TransportKind::Unknown && d.bytes == xtea_enc,
+        format!("kind={:?} len={}", d.kind, d.bytes.len()),
     );
 }
 

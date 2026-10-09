@@ -35,7 +35,7 @@ use super::loot_catalog::LootCatalog;
 use super::parse_queue::{ParseJob, ParseOutcome, ParseQueue, SeqGen};
 use super::protocol_capture::{ProtocolCapture, RecordKind, SharedCapture};
 use super::session::{SessionRegistry, SESSION_IDLE_TTL_MS};
-use super::transport_crypto::{TransportKeys, decode_packet, TransportKind};
+use super::transport_crypto::{TransportDiagnostics, TransportKeys, decode_packet, TransportKind};
 use super::udpxin::{PacketFramer, ProtocolProfile};
 use super::udpxin_entity::{ActorKind, Vec3};
 use super::udpxin_live::MoveSource;
@@ -149,7 +149,12 @@ impl BattleEngine {
             character_profile: CharacterCodecProfile::default(),
             fire_profile: FireCodecProfile::default(),
             rep_profile: RepMovementProfile::default(),
-            keys: parking_lot::Mutex::new(TransportKeys::default()),
+            // 诊断默认打开（报告 §8/R4：失败不再静默）。只加计数 + 一次性日志，
+            // 不改任何返回值语义；XTEA bank 仍然要等上游装钥匙（`xtea_bank` 默认 None）。
+            keys: parking_lot::Mutex::new(TransportKeys {
+                diag: Some(Arc::new(TransportDiagnostics::new())),
+                ..TransportKeys::default()
+            }),
             rotation: parking_lot::Mutex::new(RotationCorrection::default()),
             channel_classes: load_channel_classes(),
             capture: capture.clone(),
@@ -355,6 +360,7 @@ impl BattleEngine {
             TransportKind::AesEcbXorLz4 => "aes_ecb_xor_lz4",
             TransportKind::Lz4 => "lz4",
             TransportKind::XorStream => "xor_stream",
+            TransportKind::XteaBank => "xtea_bank",
             TransportKind::Unknown => "unknown",
         };
 

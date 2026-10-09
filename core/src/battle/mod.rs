@@ -6,7 +6,8 @@
 //! engine.rs            编排：feed → 队列 → 解析 → 应用 → 广播
 //! session.rs           一设备一会话的独立状态
 //! parse_queue.rs       有界异步流水（battle-parse-<n>/ordered-apply/watchdog）
-//! transport_crypto.rs  AES-256-ECB-XOR / LZ4 / XOR 逐包嗅探
+//! transport_crypto.rs  AES-256-ECB-XOR / LZ4 / XOR / **XTEA+8 键 bank** 逐包嗅探
+//! xtea.rs              XTEA（64 轮）解密 + `bank[block_index & 7]` 轮换（参考实现 UDP 剖面）
 //! udpxin.rs            UDP 数据报 → UE Bunch 序列
 //! udpxin_entity.rs     通道表（actor 记录）
 //! udpxin_identity.rs   身份表（GUID/名字/队伍/英雄）
@@ -35,10 +36,12 @@ pub mod udpxin_exports;
 pub mod udpxin_identity;
 pub mod udpxin_live;
 pub mod udpxin_move;
+pub mod xtea;
 
 pub use engine::{BattleEngine, EngineUpdate};
 pub use session::{SessionRegistry, SessionState};
 pub use udpxin::ProtocolProfile;
+pub use xtea::{XteaKeyBank, XTEA_BANK_LEN, XTEA_BLOCK_LEN, XTEA_KEY_LEN};
 
 /// 一局游戏里所有已知的地图键（雷达 `maps.json` 与前端一致）。
 pub const MAP_KEYS: &[(&str, &str)] = &[
