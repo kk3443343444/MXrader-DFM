@@ -720,6 +720,14 @@ pub async fn relay_udp_with(
                             trace!("UDP relay assoc {} saw client-origin datagram", assoc.id);
                             continue;
                         }
+                        // UE 的复制数据（实体位置、朝向、开火……）都在**服务端→客户端**方向。
+                        // 这一支以前只做回程转发、**没有喂解析器**：另一个方向虽然喂了
+                        // （见客户端分支），但那基本只有心跳/输入。真机症状因此是
+                        // "udp 包数在涨、total_pages 只有 1、positioned_total 0、players 空、
+                        // self 为空" —— 包收到了，但解析器从没见过复制流。
+                        // 两个方向都必须喂，解析器才能把一趟完整复制流拼起来。
+                        let upstream_datagram = Bytes::copy_from_slice(&upstream_buf[..len]);
+                        engine.feed_dir(assoc.id, from, client, &upstream_datagram, now_ms(), false);
                         send_upstream_datagram_to_client(
                             &state,
                             &assoc,
